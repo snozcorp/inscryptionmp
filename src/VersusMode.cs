@@ -112,6 +112,11 @@ namespace InscryptionMP
                 save.ResetPart1Run();          // fresh run + starter deck, in memory only
                 save.currentScene = Act1Scene;
 
+                // A synthetic run starts with the intro unplayed, which triggers Leshy's
+                // tutorial patter. There's no run here to introduce.
+                if (save.currentRun != null) save.currentRun.runIntroCompleted = true;
+                Opponent.debugSkipIntro = true;
+
                 Trace.Info("[versus] synthesised an isolated Act 1 run for the match");
             }
             catch (Exception e)

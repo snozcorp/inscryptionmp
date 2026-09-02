@@ -106,8 +106,20 @@ namespace InscryptionMP
                 }
 
                 SaveFile save = SaveManager.SaveFile;
-                _stashedRun = save.currentRun;
-                _stashedScene = save.currentScene;
+
+                // Only ever stash the *player's* run. This runs for both a match and the
+                // deck card view, and the view doesn't restore - so stashing again would
+                // capture the synthetic run we just installed and later "restore" that
+                // over their real one.
+                if (_stashedRun == null)
+                {
+                    _stashedRun = save.currentRun;
+                    _stashedScene = save.currentScene;
+                }
+                else
+                {
+                    Trace.Info("[versus] campaign run already stashed - keeping it");
+                }
 
                 save.ResetPart1Run();          // fresh run + starter deck, in memory only
                 save.currentScene = Act1Scene;

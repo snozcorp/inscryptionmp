@@ -104,10 +104,21 @@ namespace InscryptionMP
             var flow = Singleton<GameFlowManager>.Instance;
             var views = Singleton<ViewManager>.Instance;
 
-            // Get off the map if we're on it, so the table is actually visible.
+            // A menu launch drops us into the cabin standing up, not on the map. Sit down
+            // at the table first, otherwise the battle runs under a first-person view and
+            // standing up reveals the map again.
+            if (flow != null && flow.CurrentGameState == GameState.FirstPerson3D)
+            {
+                Trace.Info("[versus] sitting down at the table");
+                flow.TransitionFromFirstPerson();
+                yield return new WaitForSeconds(1f);
+            }
+
+            // Roll the map away if it's showing.
             var map = Singleton<GameMap>.Instance;
             if (map != null && flow != null && flow.CurrentGameState == GameState.Map)
             {
+                Trace.Info("[versus] hiding map");
                 views.Controller.SwitchToControlMode(ViewController.ControlMode.MapNoDeckReview);
                 yield return map.HideMapSequence();
                 yield return new WaitForSeconds(0.25f);
@@ -115,6 +126,7 @@ namespace InscryptionMP
 
             views.Controller.SwitchToControlMode(ViewController.ControlMode.CardGameDefault);
             if (flow != null) flow.CurrentGameState = GameState.CardBattle;
+            yield return new WaitForSeconds(0.35f);
 
             var encounter = new EncounterData
             {

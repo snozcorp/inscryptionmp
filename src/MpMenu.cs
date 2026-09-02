@@ -16,7 +16,7 @@ namespace InscryptionMP
         internal static string PortText = Net.DefaultPort.ToString();
 
         private const float PanelW = 480f;
-        private float PanelH => _tab == 0 ? 500f : 640f;
+        private float PanelH => _tab == 0 ? 500f : 700f;
 
         private bool _open;
         private Rect _rect;
@@ -310,53 +310,6 @@ namespace InscryptionMP
         {
             var deck = DeckStore.Deck;
 
-            GUILayout.Label($"YOUR DECK   {deck.Count} / {DeckStore.MaxCards}", _section);
-            if (!DeckStore.IsValid)
-                GUILayout.Label($"Needs at least {DeckStore.MinCards} cards to play.", _small);
-
-            // Collapse duplicates so the list reads as "3x Squirrel" rather than repeating.
-            var counts = new System.Collections.Generic.List<string>();
-            foreach (string name in deck)
-                if (!counts.Contains(name)) counts.Add(name);
-
-            _deckScroll = GUILayout.BeginScrollView(_deckScroll, GUILayout.Height(150f));
-            if (counts.Count == 0)
-                GUILayout.Label("Empty - add cards below.", _small);
-            foreach (string name in counts)
-            {
-                GUILayout.BeginHorizontal();
-                GUILayout.Label($"{DeckStore.CountOf(name)}x  {name}", _label);
-                GUILayout.FlexibleSpace();
-                if (GUILayout.Button("-", _button, GUILayout.Width(34f))) { DeckStore.Remove(name); break; }
-                GUILayout.EndHorizontal();
-            }
-            GUILayout.EndScrollView();
-
-            Rule();
-
-            GUILayout.Label("CARD POOL", _section);
-            _poolScroll = GUILayout.BeginScrollView(_poolScroll, GUILayout.Height(210f));
-            foreach (var card in DeckStore.Pool)
-            {
-                string id = card.name;
-                GUILayout.BeginHorizontal();
-                string cost = card.BloodCost > 0 ? $"{card.BloodCost} blood"
-                            : card.BonesCost > 0 ? $"{card.BonesCost} bones"
-                            : "free";
-                GUILayout.Label($"{card.DisplayedNameEnglish}", _label, GUILayout.Width(160f));
-                GUILayout.Label(cost, _small, GUILayout.Width(70f));
-                GUILayout.FlexibleSpace();
-                int have = DeckStore.CountOf(id);
-                if (have > 0) GUILayout.Label($"x{have}", _dim, GUILayout.Width(28f));
-                GUI.enabled = deck.Count < DeckStore.MaxCards;
-                if (GUILayout.Button("+", _button, GUILayout.Width(34f))) { DeckStore.Add(id); break; }
-                GUI.enabled = true;
-                GUILayout.EndHorizontal();
-            }
-            GUILayout.EndScrollView();
-
-            Rule();
-
             GUILayout.Label("CARD VIEW  (the game's own table)", _section);
             if (!NativeDeckBuilder.Available)
             {
@@ -388,6 +341,54 @@ namespace InscryptionMP
                 GUILayout.Label(NativeDeckBuilder.LastError, _small);
 
             Rule();
+
+            GUILayout.Label($"YOUR DECK   {deck.Count} / {DeckStore.MaxCards}", _section);
+            if (!DeckStore.IsValid)
+                GUILayout.Label($"Needs at least {DeckStore.MinCards} cards to play.", _small);
+
+            // Collapse duplicates so the list reads as "3x Squirrel" rather than repeating.
+            var counts = new System.Collections.Generic.List<string>();
+            foreach (string name in deck)
+                if (!counts.Contains(name)) counts.Add(name);
+
+            _deckScroll = GUILayout.BeginScrollView(_deckScroll, GUILayout.Height(130f));
+            if (counts.Count == 0)
+                GUILayout.Label("Empty - add cards below.", _small);
+            foreach (string name in counts)
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.Label($"{DeckStore.CountOf(name)}x  {name}", _label);
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button("-", _button, GUILayout.Width(34f))) { DeckStore.Remove(name); break; }
+                GUILayout.EndHorizontal();
+            }
+            GUILayout.EndScrollView();
+
+            Rule();
+
+            GUILayout.Label("CARD POOL", _section);
+            _poolScroll = GUILayout.BeginScrollView(_poolScroll, GUILayout.Height(190f));
+            foreach (var card in DeckStore.Pool)
+            {
+                string id = card.name;
+                GUILayout.BeginHorizontal();
+                string cost = card.BloodCost > 0 ? $"{card.BloodCost} blood"
+                            : card.BonesCost > 0 ? $"{card.BonesCost} bones"
+                            : "free";
+                GUILayout.Label($"{card.DisplayedNameEnglish}", _label, GUILayout.Width(160f));
+                GUILayout.Label(cost, _small, GUILayout.Width(70f));
+                GUILayout.FlexibleSpace();
+                int have = DeckStore.CountOf(id);
+                if (have > 0) GUILayout.Label($"x{have}", _dim, GUILayout.Width(28f));
+                GUI.enabled = deck.Count < DeckStore.MaxCards;
+                if (GUILayout.Button("+", _button, GUILayout.Width(34f))) { DeckStore.Add(id); break; }
+                GUI.enabled = true;
+                GUILayout.EndHorizontal();
+            }
+            GUILayout.EndScrollView();
+
+            Rule();
+
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("Save Deck", _button)) DeckStore.Save();
             if (GUILayout.Button("Reset", _button)) DeckStore.ResetToStarter();

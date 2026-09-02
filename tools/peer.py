@@ -43,7 +43,7 @@ def reader(sock, writer, auto):
     f = sock.makefile("r", encoding="utf-8", newline="\n")
     turn = 0
     for line in f:
-        line = line.rstrip("\n")
+        line = line.strip()   # game sends CRLF; a stray CR breaks equality checks
         if not line:
             continue
         log_in(line)

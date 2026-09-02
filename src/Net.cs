@@ -88,13 +88,15 @@ namespace InscryptionMP
         private static void Pump()
         {
             var stream = _client.GetStream();
-            _writer = new StreamWriter(stream) { AutoFlush = true };
+            _writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\n" };
             Connected = true;
             using (var reader = new StreamReader(stream))
             {
                 string line;
                 while (_running && (line = reader.ReadLine()) != null)
                 {
+                    line = line.Trim();
+                    if (line.Length == 0) continue;
                     Trace.Info($"[net] <- {line}");
                     Inbox.Enqueue(line);
                 }

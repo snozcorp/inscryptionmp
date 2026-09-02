@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using DiskCardGame;
@@ -70,10 +71,72 @@ namespace InscryptionMP
 
             // A versus match must never be able to write to the campaign save.
             SaveManager.savingDisabled = true;
-            SaveManager.LoadFromFile();
+
+            PrepareIsolatedRun();
 
             PendingStart = true;
             LoadingScreenManager.LoadScene(Act1Scene);
+        }
+
+        /// <summary>
+        /// Gives the match a valid, self-contained Act 1 run to sit inside.
+        ///
+        /// Part1_Cabin expects a run to exist - a player with no save, or one who has
+        /// never started Act 1, previously got a broken scene. We synthesise a fresh run
+        /// instead of borrowing theirs, and stash whatever was there so the campaign is
+        /// untouched. Saving is disabled throughout, so none of this reaches disk.
+        /// </summary>
+        private static void PrepareIsolatedRun()
+        {
+            try
+            {
+                if (SaveManager.SaveFile == null)
+                {
+                    Trace.Info("[versus] no save file - creating one");
+                    SaveManager.CreateNewSaveFile();
+                }
+
+                SaveFile save = SaveManager.SaveFile;
+                _stashedRun = save.currentRun;
+                _stashedScene = save.currentScene;
+
+                save.ResetPart1Run();          // fresh run + starter deck, in memory only
+                save.currentScene = Act1Scene;
+
+                Trace.Info("[versus] synthesised an isolated Act 1 run for the match");
+            }
+            catch (Exception e)
+            {
+                Trace.Error($"[versus] could not prepare run state: {e.Message}");
+            }
+        }
+
+        private static RunState _stashedRun;
+        private static string _stashedScene;
+
+        /// <summary>Puts the player's own run back after a match.</summary>
+        private static void RestoreCampaignRun()
+        {
+            try
+            {
+                if (_stashedRun == null) return;
+                SaveFile save = SaveManager.SaveFile;
+                if (save != null)
+                {
+                    save.currentRun = _stashedRun;
+                    if (_stashedScene != null) save.currentScene = _stashedScene;
+                    Trace.Info("[versus] restored the campaign run");
+                }
+            }
+            catch (Exception e)
+            {
+                Trace.Error($"[versus] could not restore run state: {e.Message}");
+            }
+            finally
+            {
+                _stashedRun = null;
+                _stashedScene = null;
+            }
         }
 
         /// <summary>Polled once the scene has loaded; starts the match when the board is ready.</summary>
@@ -180,6 +243,7 @@ namespace InscryptionMP
             InMatch = false;
             PendingStart = false;
             Match.Reset();
+            RestoreCampaignRun();
 
             var runner = Plugin.Runner;
             if (runner != null) runner.StartCoroutine(ReturnToMenu());
@@ -205,6 +269,7 @@ namespace InscryptionMP
             InMatch = false;
             PendingStart = false;
             Match.Reset();
+            RestoreCampaignRun();
             MenuController.ReturnToStartScreen();
         }
     }

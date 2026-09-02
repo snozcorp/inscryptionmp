@@ -29,10 +29,17 @@ namespace InscryptionMP
         {
             get
             {
+                if (Net.HandshakeError != null) return Net.HandshakeError;
                 if (!Net.Connected) return "no peer connected";
                 if (InMatch)        return null;
                 if (PendingStart)   return "loading...";
-                if (!DeckStore.IsValid) return $"deck needs {DeckStore.MinCards}-{DeckStore.MaxCards} cards";
+                if (Net.HandshakeError != null)
+            {
+                Trace.Warn("[versus] refusing to start: " + Net.HandshakeError);
+                return;
+            }
+
+            if (!DeckStore.IsValid) return $"deck needs {DeckStore.MinCards}-{DeckStore.MaxCards} cards";
                 return null;
             }
         }
@@ -55,6 +62,12 @@ namespace InscryptionMP
         {
             if (!Net.Connected) { Trace.Warn("[versus] no peer connected"); return; }
             if (InMatch || PendingStart) return;
+
+            if (Net.HandshakeError != null)
+            {
+                Trace.Warn("[versus] refusing to start: " + Net.HandshakeError);
+                return;
+            }
 
             if (!DeckStore.IsValid)
             {

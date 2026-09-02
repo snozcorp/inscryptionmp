@@ -99,6 +99,7 @@ namespace InscryptionMP
             var stream = _client.GetStream();
             _writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\n" };
             TcpConnected = true;
+            SendHello();   // TCP never greeted the peer at all
             using (var reader = new StreamReader(stream))
             {
                 string line;
@@ -129,11 +130,46 @@ namespace InscryptionMP
         public static bool? PendingResult { get; set; }
 
         /// <summary>Returns true if the message was a result and has been captured.</summary>
+        /// <summary>Set when a peer greets us with an incompatible protocol version.</summary>
+        public static string HandshakeError { get; set; }
+
+        /// <summary>True once the peer has greeted us with a compatible version.</summary>
+        public static bool PeerVerified { get; private set; }
+
+        /// <summary>Returns true if the message was handled out-of-band.</summary>
         public static bool CaptureResult(string line)
         {
             if (line == Protocol.Won)  { PendingResult = false; return true; }   // peer won, so we lost
             if (line == Protocol.Lost) { PendingResult = true;  return true; }
+
+            if (Protocol.TryParseHello(line, out int proto, out string modVersion))
+            {
+                if (proto != Protocol.Version)
+                {
+                    HandshakeError =
+                        "version mismatch - you have mod " + Plugin.Version +
+                        " (protocol " + Protocol.Version + "), they have " + modVersion +
+                        " (protocol " + proto + ")";
+                    Trace.Error("[net] " + HandshakeError);
+                    PeerVerified = false;
+                }
+                else
+                {
+                    PeerVerified = true;
+                    Trace.Info("[net] peer verified - mod " + modVersion + ", protocol " + proto);
+                }
+                return true;
+            }
+
             return false;
+        }
+
+        /// <summary>Greets the peer. Called by whichever transport just connected.</summary>
+        public static void SendHello()
+        {
+            HandshakeError = null;
+            PeerVerified = false;
+            Send(Protocol.Hello);
         }
 
         public static bool TryDequeue(out string msg)
@@ -162,6 +198,9 @@ namespace InscryptionMP
             try { _client?.Close(); } catch { }
             try { _listener?.Stop(); } catch { }
             while (Inbox.TryDequeue(out _)) { }
+            PendingResult = null;
+            HandshakeError = null;
+            PeerVerified = false;
             _writer = null; _client = null; _listener = null;
         }
     }

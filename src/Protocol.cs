@@ -4,7 +4,29 @@ namespace InscryptionMP
     public static class Protocol
     {
         public const string EndTurn = "END";
-        public const string Hello = "HELLO 1";
+        /// <summary>
+        /// Bumped whenever the wire format changes. Two clients on different protocol
+        /// versions connect happily and then desync in confusing ways, so they refuse
+        /// each other up front instead.
+        /// </summary>
+        public const int Version = 1;
+
+        public const string HelloPrefix = "HELLO ";
+
+        public static string Hello => HelloPrefix + Version + " " + Plugin.Version;
+
+        /// <summary>Parses a peer greeting into its protocol version and mod version.</summary>
+        public static bool TryParseHello(string msg, out int protocolVersion, out string modVersion)
+        {
+            protocolVersion = 0;
+            modVersion = "?";
+            if (msg == null || !msg.StartsWith(HelloPrefix)) return false;
+
+            string[] parts = msg.Substring(HelloPrefix.Length).Split(' ');
+            if (parts.Length < 1 || !int.TryParse(parts[0], out protocolVersion)) return false;
+            if (parts.Length > 1) modVersion = parts[1];
+            return true;
+        }
         public const string StartMatch = "START";
         public const string BoardPrefix = "BOARD ";
         public const string EmptySlot = "-";

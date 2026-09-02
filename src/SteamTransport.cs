@@ -177,7 +177,7 @@ namespace InscryptionMP
                 Connected = true;
                 Status = "connected to " + SteamFriends.GetFriendPersonaName(_peer);
                 Trace.Info("[steam] " + Status);
-                Send(Protocol.Hello);
+                Net.SendHello();
             }
             else
             {
@@ -237,6 +237,7 @@ namespace InscryptionMP
                     Connected = true;
                     Status = "connected to " + SteamFriends.GetFriendPersonaName(_peer);
                     Trace.Info("[steam] opponent joined");
+                    Net.SendHello();
                 }
             }
 
@@ -257,7 +258,6 @@ namespace InscryptionMP
                 string line = all.Substring(0, nl).Trim();
                 all = all.Substring(nl + 1);
                 if (line.Length == 0) continue;
-                if (line == Protocol.Hello) { Trace.Info("[steam] <- HELLO"); continue; }
                 Trace.Info("[steam] <- " + line);
                 if (Net.CaptureResult(line)) continue;   // results bypass the inbox
                 Inbox.Enqueue(line);

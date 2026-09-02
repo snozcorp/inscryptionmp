@@ -284,6 +284,12 @@ namespace InscryptionMP
 
             GUILayout.Label("INSCRYPTION ONLINE", _header);
             GUILayout.Label(Net.StatusLine, Net.Connected ? _label : _dim);
+            if (Net.HandshakeError != null)
+            {
+                GUILayout.Label("INCOMPATIBLE VERSIONS", _section);
+                GUILayout.Label(Net.HandshakeError, _small);
+                GUILayout.Label("Both players need the same build of the mod.", _small);
+            }
             GUILayout.Space(6f);
 
             GUILayout.BeginHorizontal();
@@ -349,7 +355,8 @@ namespace InscryptionMP
             Rule();
 
             // ---- Match ----
-            GUI.enabled = Net.Connected && !VersusMode.InMatch && !VersusMode.PendingStart && DeckStore.IsValid;
+            GUI.enabled = Net.Connected && !VersusMode.InMatch && !VersusMode.PendingStart
+                          && DeckStore.IsValid && Net.HandshakeError == null;
             if (GUILayout.Button("START MATCH", _button)) VersusMode.StartAnywhere(this);
             GUI.enabled = true;
             if (!DeckStore.IsValid)

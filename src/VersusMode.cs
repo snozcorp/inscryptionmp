@@ -41,8 +41,24 @@ namespace InscryptionMP
         /// </summary>
         public static void StartAnywhere(MonoBehaviour host)
         {
+            StartAnywhere(host, tellPeer: true);
+        }
+
+        /// <summary>
+        /// Both clients run their own battle, so a match only works if both start one.
+        /// A locally initiated start tells the peer to start too; a peer-initiated start
+        /// must not echo back.
+        /// </summary>
+        public static void StartAnywhere(MonoBehaviour host, bool tellPeer)
+        {
             if (!Net.Connected) { Trace.Warn("[versus] no peer connected"); return; }
             if (InMatch || PendingStart) return;
+
+            if (tellPeer)
+            {
+                Trace.Info("[versus] telling peer to start");
+                Net.Send(Protocol.StartMatch);
+            }
 
             if (Singleton<TurnManager>.Instance != null)
             {

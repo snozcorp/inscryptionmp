@@ -5,6 +5,7 @@ namespace InscryptionMP
     {
         public const string EndTurn = "END";
         public const string Hello = "HELLO 1";
+        public const string StartMatch = "START";
         public const string Won  = "OVER WON";    // sender is telling us THEY won
         public const string Lost = "OVER LOST";
 

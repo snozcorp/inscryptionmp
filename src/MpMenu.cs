@@ -35,6 +35,21 @@ namespace InscryptionMP
 
             VersusMode.TickPendingStart(this);
 
+            // Nothing drains the inbox outside a match, so watch for the peer asking us
+            // to start one. Without this, only the clicking player enters a battle.
+            if (!VersusMode.InMatch && !VersusMode.PendingStart && Net.Connected)
+            {
+                while (Net.TryDequeue(out string msg))
+                {
+                    if (msg == Protocol.StartMatch)
+                    {
+                        Trace.Info("[versus] peer started a match - joining");
+                        VersusMode.StartAnywhere(this, tellPeer: false);
+                        break;
+                    }
+                }
+            }
+
             if (VersusMode.InMatch && !Net.Connected)
                 VersusMode.Finish(this, playerWon: true, reason: "peer disconnected");
         }

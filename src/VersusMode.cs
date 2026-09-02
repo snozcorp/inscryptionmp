@@ -153,6 +153,25 @@ namespace InscryptionMP
             }
         }
 
+        /// <summary>
+        /// Loads the Act 1 table without starting a match, so the native card view has
+        /// somewhere to lay cards out. Uses the same isolated run as a match, so the
+        /// player's campaign is untouched.
+        /// </summary>
+        public static void LoadTableOnly()
+        {
+            if (Singleton<TurnManager>.Instance != null)
+            {
+                Trace.Info("[versus] already in the gameplay scene");
+                return;
+            }
+
+            Trace.Info("[versus] loading the table for deck building");
+            SaveManager.savingDisabled = true;
+            PrepareIsolatedRun();
+            LoadingScreenManager.LoadScene(Act1Scene);
+        }
+
         /// <summary>Polled once the scene has loaded; starts the match when the board is ready.</summary>
         public static void TickPendingStart(MonoBehaviour host)
         {

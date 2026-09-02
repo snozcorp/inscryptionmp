@@ -30,7 +30,11 @@ namespace InscryptionMP
         {
             SteamTransport.Poll();
 
-            if (Input.GetKeyDown(KeyCode.F7)) _open = !_open;
+            if (Input.GetKeyDown(KeyCode.F7))
+            {
+                if (NativeDeckBuilder.IsOpen) NativeDeckBuilder.Close();
+                else _open = !_open;
+            }
             if (Input.GetKeyDown(KeyCode.F8)) VersusMode.StartAnywhere(this);
             if (Input.GetKeyDown(KeyCode.F12)) VersusMode.Abort(this);
 
@@ -122,6 +126,13 @@ namespace InscryptionMP
         {
             EnsureStyles();
 
+            // The 3D card view needs the screen to itself.
+            if (NativeDeckBuilder.IsOpen)
+            {
+                DrawCardViewHint();
+                return;
+            }
+
             if (!_open)
             {
                 DrawChip();
@@ -174,6 +185,21 @@ namespace InscryptionMP
 
             GUI.DrawTexture(new Rect(x - len, y, len * 2f, thick), _accent);
             GUI.DrawTexture(new Rect(x, y - len, thick, len * 2f), _accent);
+        }
+
+        private void DrawCardViewHint()
+        {
+            string mode = NativeDeckBuilder.PoolMode
+                ? "Click a card to ADD it to your deck"
+                : "Click a card to REMOVE it from your deck";
+            string text = $"{mode}   -   {DeckStore.Deck.Count}/{DeckStore.MaxCards}   -   [F7] done";
+
+            var size = _chip.CalcSize(new GUIContent(text));
+            var r = new Rect((Screen.width - size.x - 20f) * 0.5f, 14f, size.x + 20f, size.y + 10f);
+
+            GUI.DrawTexture(r, _panelBg);
+            GUI.DrawTexture(new Rect(r.x, r.y, r.width, 2f), _accent);
+            GUI.Label(new Rect(r.x + 10f, r.y + 5f, r.width, r.height), text, _chip);
         }
 
         private void Rule()
@@ -328,6 +354,38 @@ namespace InscryptionMP
                 GUILayout.EndHorizontal();
             }
             GUILayout.EndScrollView();
+
+            Rule();
+
+            GUILayout.Label("CARD VIEW  (the game's own table)", _section);
+            if (!NativeDeckBuilder.Available)
+            {
+                GUILayout.Label("Needs the Act 1 table loaded.", _small);
+                if (GUILayout.Button("Load Table", _button))
+                {
+                    _open = false;
+                    VersusMode.LoadTableOnly();
+                }
+            }
+            else
+            {
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("Browse Cards", _button))
+                {
+                    _open = false;
+                    NativeDeckBuilder.Open(this, poolMode: true);
+                }
+                GUI.enabled = DeckStore.Deck.Count > 0;
+                if (GUILayout.Button("Review Deck", _button))
+                {
+                    _open = false;
+                    NativeDeckBuilder.Open(this, poolMode: false);
+                }
+                GUI.enabled = true;
+                GUILayout.EndHorizontal();
+            }
+            if (NativeDeckBuilder.LastError != null)
+                GUILayout.Label(NativeDeckBuilder.LastError, _small);
 
             Rule();
             GUILayout.BeginHorizontal();

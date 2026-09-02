@@ -20,6 +20,14 @@ namespace InscryptionMP
         {
             Log = Logger;
             Trace.Init();
+
+            // Unity swallows coroutine exceptions into its own log, which BepInEx buffers.
+            // Route them into the flushed trace so a hang is diagnosable from outside.
+            Application.logMessageReceived += (condition, stack, type) =>
+            {
+                if (type == LogType.Exception || type == LogType.Error)
+                    Trace.Error($"[unity] {type}: {condition} || {stack}");
+            };
             Log.LogInfo("=====================================");
             Log.LogInfo($"{Name} v{Version} loaded.");
             Log.LogInfo($"Unity: {Application.unityVersion}");

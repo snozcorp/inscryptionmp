@@ -14,14 +14,14 @@ namespace InscryptionMP
         [HarmonyPostfix]
         private static void BellRang()
         {
-            Plugin.Log.LogInfo($"[probe] bell rang - local player ended turn {Singleton<TurnManager>.Instance?.TurnNumber}");
+            Trace.Info($"[probe] bell rang - local player ended turn {Singleton<TurnManager>.Instance?.TurnNumber}");
         }
 
         [HarmonyPatch(typeof(Opponent), nameof(Opponent.QueueCard))]
         [HarmonyPrefix]
         private static void QueueCard(CardInfo cardInfo, CardSlot slot)
         {
-            Plugin.Log.LogInfo($"[probe] opponent queued '{cardInfo?.DisplayedNameEnglish}' -> slot idx {slot?.Index}");
+            Trace.Info($"[probe] opponent queued '{cardInfo?.DisplayedNameEnglish}' -> slot idx {slot?.Index}");
         }
     }
 }

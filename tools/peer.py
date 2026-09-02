@@ -1,66 +1,68 @@
 #!/usr/bin/env python3
 """
-Fake peer for InscryptionMP.
+Persistent fake peer for InscryptionMP.
 
-Lets us drive the network opponent without a second copy of the game.
-In-game: press F9 (host), then run this. It connects and plays a turn.
+Connects to the hosting game and stays connected, so the game's OpponentInjector
+sees a live session when a battle spawns. Acts as a file-driven bridge:
 
-  python tools/peer.py                      # default scripted turn
-  python tools/peer.py Wolf:0 Adder:2       # play Wolf in slot 0, Adder in slot 2
+  - anything appended to .tmp/outbox.txt is sent to the game
+  - anything the game sends is appended to .tmp/inbox.log
+
+  python tools/peer.py            # connect and hold
+  echo "PLAY Wolf 1" >> .tmp/outbox.txt
+  echo "END"          >> .tmp/outbox.txt
 """
+import os
 import socket
 import sys
+import threading
 import time
 
 HOST, PORT = "127.0.0.1", 27333
+OUTBOX = os.path.join(".tmp", "outbox.txt")
+INBOX = os.path.join(".tmp", "inbox.log")
+
+
+def reader(sock):
+    f = sock.makefile("r", encoding="utf-8", newline="\n")
+    for line in f:
+        line = line.rstrip("\n")
+        if not line:
+            continue
+        with open(INBOX, "a", encoding="utf-8") as log:
+            log.write(f"{time.strftime('%H:%M:%S')} <- {line}\n")
+        print(f"<- {line}", flush=True)
 
 
 def main():
-    plays = []
-    for arg in sys.argv[1:]:
-        name, _, slot = arg.partition(":")
-        plays.append((name, int(slot or 0)))
-    if not plays:
-        plays = [("Wolf", 1), ("Adder", 2)]
+    os.makedirs(".tmp", exist_ok=True)
+    open(OUTBOX, "w").close()
+    open(INBOX, "w").close()
 
-    print(f"connecting to {HOST}:{PORT} ...")
-    s = socket.create_connection((HOST, PORT), timeout=10)
-    print("connected. peer is now driving the opponent side.")
+    print(f"connecting to {HOST}:{PORT} ...", flush=True)
+    sock = socket.create_connection((HOST, PORT), timeout=15)
+    sock.settimeout(None)  # connect timeout must not linger on recv
+    print("CONNECTED - overlay should be green now.", flush=True)
 
-    f = s.makefile("rw", encoding="utf-8", newline="\n")
+    threading.Thread(target=reader, args=(sock,), daemon=True).start()
 
-    for name, slot in plays:
-        msg = f"PLAY {name} {slot}"
-        print(f"-> {msg}")
-        f.write(msg + "\n")
-        f.flush()
-        time.sleep(1.2)
-
-    print("-> END")
-    f.write("END\n")
-    f.flush()
-
-    # Drain anything the game sends back (our own plays echo here).
-    s.settimeout(2.0)
+    writer = sock.makefile("w", encoding="utf-8", newline="\n")
+    sent = 0
     try:
         while True:
-            line = f.readline()
-            if not line:
-                break
-            print(f"<- {line.rstrip()}")
-    except socket.timeout:
-        pass
-
-    print("done. (leaving socket open so the session stays alive)")
-    try:
-        while True:
-            line = f.readline()
-            if not line:
-                break
-            print(f"<- {line.rstrip()}")
-    except KeyboardInterrupt:
-        pass
-    s.close()
+            with open(OUTBOX, "r", encoding="utf-8") as f:
+                lines = [l.rstrip("\n") for l in f if l.strip()]
+            while sent < len(lines):
+                msg = lines[sent]
+                sent += 1
+                writer.write(msg + "\n")
+                writer.flush()
+                print(f"-> {msg}", flush=True)
+            time.sleep(0.25)
+    except (KeyboardInterrupt, BrokenPipeError, OSError) as e:
+        print(f"peer closing: {e}", flush=True)
+    finally:
+        sock.close()
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ namespace InscryptionMP
         /// </summary>
         public override IEnumerator QueueNewCards(bool doTween = true, bool changeView = true)
         {
-            Plugin.Log.LogInfo("[opp] waiting for peer's turn...");
+            Trace.Info("[opp] waiting for peer's turn...");
 
             while (true)
             {
@@ -30,7 +30,7 @@ namespace InscryptionMP
                 {
                     if (msg == Protocol.EndTurn)
                     {
-                        Plugin.Log.LogInfo("[opp] peer ended turn.");
+                        Trace.Info("[opp] peer ended turn.");
                         yield break;
                     }
 
@@ -42,7 +42,7 @@ namespace InscryptionMP
 
                 if (!Net.Connected)
                 {
-                    Plugin.Log.LogWarning("[opp] peer disconnected; ending turn.");
+                    Trace.Warn("[opp] peer disconnected; ending turn.");
                     yield break;
                 }
 
@@ -55,7 +55,7 @@ namespace InscryptionMP
             CardInfo info = CardLoader.GetCardByName(cardName);
             if (info == null)
             {
-                Plugin.Log.LogError($"[opp] unknown card '{cardName}' - skipping");
+                Trace.Error($"[opp] unknown card '{cardName}' - skipping");
                 yield break;
             }
 
@@ -63,18 +63,18 @@ namespace InscryptionMP
             var slots = board.OpponentSlotsCopy;
             if (slotIndex < 0 || slotIndex >= slots.Count)
             {
-                Plugin.Log.LogError($"[opp] slot {slotIndex} out of range - skipping");
+                Trace.Error($"[opp] slot {slotIndex} out of range - skipping");
                 yield break;
             }
 
             CardSlot slot = slots[slotIndex];
             if (slot.Card != null)
             {
-                Plugin.Log.LogWarning($"[opp] slot {slotIndex} occupied - skipping");
+                Trace.Warn($"[opp] slot {slotIndex} occupied - skipping");
                 yield break;
             }
 
-            Plugin.Log.LogInfo($"[opp] placing peer card '{cardName}' in opponent slot {slotIndex}");
+            Trace.Info($"[opp] placing peer card '{cardName}' in opponent slot {slotIndex}");
             yield return board.CreateCardInSlot(info, slot);
             yield return new WaitForSeconds(0.15f);
         }

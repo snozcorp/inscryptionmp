@@ -19,6 +19,7 @@ namespace InscryptionMP
         private void Awake()
         {
             Log = Logger;
+            Trace.Init();
             Log.LogInfo("=====================================");
             Log.LogInfo($"{Name} v{Version} loaded.");
             Log.LogInfo($"Unity: {Application.unityVersion}");
@@ -30,6 +31,14 @@ namespace InscryptionMP
 
             gameObject.AddComponent<Hotkeys>();
             Log.LogInfo("Hotkeys: F9=host, F10=join localhost, F11=status");
+
+            var autoHost = Config.Bind("Dev", "AutoHost", true,
+                "Start hosting automatically on launch. Convenient while iterating.");
+            if (autoHost.Value)
+            {
+                Trace.Info("[boot] AutoHost enabled - hosting immediately.");
+                Net.Host();
+            }
         }
 
         private void OnDestroy()

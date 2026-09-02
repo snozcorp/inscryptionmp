@@ -31,7 +31,7 @@ namespace InscryptionMP
         {
             if (_running)
             {
-                Plugin.Log.LogInfo($"[net] already {(Connected ? "connected" : "hosting")} - ignoring");
+                Trace.Info($"[net] already {(Connected ? "connected" : "hosting")} - ignoring");
                 return;
             }
             Shutdown();
@@ -39,14 +39,14 @@ namespace InscryptionMP
             _running = true;
             _thread = new Thread(() => HostLoop(port)) { IsBackground = true, Name = "InscryptionMP-Host" };
             _thread.Start();
-            Plugin.Log.LogInfo($"[net] hosting on port {port}, waiting for peer...");
+            Trace.Info($"[net] hosting on port {port}, waiting for peer...");
         }
 
         public static void Join(string host, int port = DefaultPort)
         {
             if (_running)
             {
-                Plugin.Log.LogInfo($"[net] already {(Connected ? "connected" : "connecting")} - ignoring");
+                Trace.Info($"[net] already {(Connected ? "connected" : "connecting")} - ignoring");
                 return;
             }
             Shutdown();
@@ -54,7 +54,7 @@ namespace InscryptionMP
             _running = true;
             _thread = new Thread(() => JoinLoop(host, port)) { IsBackground = true, Name = "InscryptionMP-Client" };
             _thread.Start();
-            Plugin.Log.LogInfo($"[net] connecting to {host}:{port}...");
+            Trace.Info($"[net] connecting to {host}:{port}...");
         }
 
         private static void HostLoop(int port)
@@ -62,13 +62,14 @@ namespace InscryptionMP
             try
             {
                 _listener = new TcpListener(IPAddress.Any, port);
+                _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 _listener.Start();
                 _client = _listener.AcceptTcpClient();
-                Plugin.Log.LogInfo("[net] peer connected.");
+                Trace.Info("[net] peer connected.");
                 Pump();
             }
-            catch (Exception e) { if (_running) Plugin.Log.LogError($"[net] host error: {e.Message}"); }
-            finally { Connected = false; }
+            catch (Exception e) { if (_running) Trace.Error($"[net] host error: {e.Message}"); }
+            finally { Connected = false; _running = false; }
         }
 
         private static void JoinLoop(string host, int port)
@@ -77,11 +78,11 @@ namespace InscryptionMP
             {
                 _client = new TcpClient();
                 _client.Connect(host, port);
-                Plugin.Log.LogInfo("[net] connected to host.");
+                Trace.Info("[net] connected to host.");
                 Pump();
             }
-            catch (Exception e) { if (_running) Plugin.Log.LogError($"[net] join error: {e.Message}"); }
-            finally { Connected = false; }
+            catch (Exception e) { if (_running) Trace.Error($"[net] join error: {e.Message}"); }
+            finally { Connected = false; _running = false; }
         }
 
         private static void Pump()
@@ -94,7 +95,7 @@ namespace InscryptionMP
                 string line;
                 while (_running && (line = reader.ReadLine()) != null)
                 {
-                    Plugin.Log.LogInfo($"[net] <- {line}");
+                    Trace.Info($"[net] <- {line}");
                     Inbox.Enqueue(line);
                 }
             }
@@ -102,9 +103,9 @@ namespace InscryptionMP
 
         public static void Send(string msg)
         {
-            if (!Connected || _writer == null) { Plugin.Log.LogWarning($"[net] dropped (not connected): {msg}"); return; }
-            try { _writer.WriteLine(msg); Plugin.Log.LogInfo($"[net] -> {msg}"); }
-            catch (Exception e) { Plugin.Log.LogError($"[net] send failed: {e.Message}"); }
+            if (!Connected || _writer == null) { Trace.Warn($"[net] dropped (not connected): {msg}"); return; }
+            try { _writer.WriteLine(msg); Trace.Info($"[net] -> {msg}"); }
+            catch (Exception e) { Trace.Error($"[net] send failed: {e.Message}"); }
         }
 
         public static bool TryDequeue(out string msg) => Inbox.TryDequeue(out msg);

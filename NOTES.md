@@ -95,3 +95,23 @@ Two fixes:
 
 Lesson: for a mod with no UI, build the status readout before the first live test.
 Verified working via `netstat`: the game process holds `0.0.0.0:27333 LISTENING`.
+
+## Gotchas: launching and logging
+1. **BepInEx's disk log buffers.** You cannot watch a live session through
+   `LogOutput.log` from outside the game. `Trace.cs` mirrors everything to
+   `BepInEx/mp-trace.log` with an explicit flush per line. Tag lines with the PID.
+2. **Launching `Inscryption.exe` directly makes Steam spawn a second process.** The two
+   race for port 27333 and the loser logs `Address already in use` — then Steam kills
+   the winner, leaving a live game that is not hosting. Launch with
+   `cmd /c start "" "steam://rungameid/1092790"` instead.
+3. A failed `Host()`/`Join()` left `_running = true`, so the idempotency guard blocked
+   any retry — the mod was wedged until restart. Failures now reset `_running`.
+   Listener also sets `SO_REUSEADDR` for prompt rebinding.
+
+## Verified working end to end
+```
+[boot] AutoHost enabled - hosting immediately.
+[net] hosting on port 27333, waiting for peer...
+[net] peer connected.
+```
+Transport, host lifecycle, and status overlay all confirmed against the real game.

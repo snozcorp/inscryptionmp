@@ -19,7 +19,7 @@ namespace InscryptionMP
             if (!Net.Connected || __result == null) return;
 
             GameObject go = __result.gameObject;
-            Plugin.Log.LogInfo($"[inject] replacing {__result.GetType().Name} with NetworkOpponent");
+            Trace.Info($"[inject] replacing {__result.GetType().Name} with NetworkOpponent");
 
             Object.DestroyImmediate(__result);
 

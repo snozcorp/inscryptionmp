@@ -241,6 +241,8 @@ namespace InscryptionMP
                 yield return new WaitForSeconds(0.25f);
             }
 
+            TableProps.HidePlayerMarker();
+
             views.Controller.SwitchToControlMode(ViewController.ControlMode.CardGameDefault);
             if (flow != null) flow.CurrentGameState = GameState.CardBattle;
 
@@ -282,6 +284,7 @@ namespace InscryptionMP
             PendingStart = false;
             Match.Reset();
             RestoreCampaignRun();
+            TableProps.RestorePlayerMarker();
 
             var runner = Plugin.Runner;
             if (runner != null) runner.StartCoroutine(ReturnToMenu());
@@ -308,6 +311,7 @@ namespace InscryptionMP
             PendingStart = false;
             Match.Reset();
             RestoreCampaignRun();
+            TableProps.RestorePlayerMarker();
             MenuController.ReturnToStartScreen();
         }
     }

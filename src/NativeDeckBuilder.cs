@@ -137,6 +137,8 @@ namespace InscryptionMP
                 yield return new WaitForSeconds(0.2f);
             }
 
+            TableProps.HidePlayerMarker();
+
             if (views != null)
             {
                 prevLock = views.Controller.LockState;
@@ -196,6 +198,7 @@ namespace InscryptionMP
             }
 
             IsOpen = false;
+            TableProps.RestorePlayerMarker();
             if (views != null)
             {
                 views.SwitchToView(View.Default);

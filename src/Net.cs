@@ -27,6 +27,9 @@ namespace InscryptionMP
         public static bool IsHost { get; private set; }
         public static bool Connected { get; private set; }
 
+        /// <summary>True while a host listener or join attempt is alive.</summary>
+        public static bool Running => _running;
+
         public static void Host(int port = DefaultPort)
         {
             if (_running)

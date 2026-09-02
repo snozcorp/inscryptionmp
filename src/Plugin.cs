@@ -41,7 +41,7 @@ namespace InscryptionMP
             _harmony.PatchAll(typeof(Plugin).Assembly);
             Log.LogInfo("Harmony patches applied.");
 
-            gameObject.AddComponent<Hotkeys>();
+            gameObject.AddComponent<MpMenu>();
             Log.LogInfo("Hotkeys: F9=host, F10=join localhost, F11=status");
 
             var autoHost = Config.Bind("Dev", "AutoHost", true,

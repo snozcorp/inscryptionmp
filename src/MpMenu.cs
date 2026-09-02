@@ -16,8 +16,18 @@ namespace InscryptionMP
         internal static string PortText = Net.DefaultPort.ToString();
 
         private bool _open;
-        private GUIStyle _chip, _label, _header, _field, _button;
-        private Rect _rect = new Rect(20f, 20f, 340f, 0f);
+        private GUIStyle _chip, _label, _header, _field, _button, _dim;
+        private Texture2D _panelBg, _chipBg, _accent;
+
+        private static Texture2D Solid(Color c)
+        {
+            var t = new Texture2D(1, 1);
+            t.SetPixel(0, 0, c);
+            t.Apply();
+            t.hideFlags = HideFlags.HideAndDontSave;
+            return t;
+        }
+        private Rect _rect = new Rect(24f, 24f, 400f, 0f);
 
         private void Update()
         {
@@ -42,21 +52,44 @@ namespace InscryptionMP
         {
             if (_chip != null) return;
 
+            _panelBg = Solid(new Color(0.06f, 0.05f, 0.04f, 0.97f));
+            _chipBg  = Solid(new Color(0.06f, 0.05f, 0.04f, 0.88f));
+            _accent  = Solid(new Color(0.85f, 0.62f, 0.25f, 1f));
+
             _chip = new GUIStyle(GUI.skin.label)
             {
                 fontSize = 14,
                 normal = { textColor = Color.white },
                 padding = new RectOffset(8, 8, 4, 4),
             };
-            _label = new GUIStyle(GUI.skin.label) { fontSize = 13, normal = { textColor = new Color(0.88f, 0.86f, 0.80f) } };
+            _label = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 15,
+                wordWrap = false,
+                normal = { textColor = new Color(0.96f, 0.94f, 0.88f) },
+            };
+            _dim = new GUIStyle(_label) { fontSize = 13, normal = { textColor = new Color(0.62f, 0.59f, 0.53f) } };
             _header = new GUIStyle(GUI.skin.label)
             {
-                fontSize = 16,
+                fontSize = 20,
                 fontStyle = FontStyle.Bold,
-                normal = { textColor = new Color(1f, 0.85f, 0.55f) },
+                normal = { textColor = new Color(1f, 0.80f, 0.38f) },
             };
-            _field = new GUIStyle(GUI.skin.textField) { fontSize = 13 };
-            _button = new GUIStyle(GUI.skin.button) { fontSize = 13, padding = new RectOffset(10, 10, 6, 6) };
+            _field = new GUIStyle(GUI.skin.textField)
+            {
+                fontSize = 15,
+                padding = new RectOffset(8, 8, 6, 6),
+                normal = { textColor = Color.white, background = Solid(new Color(0.15f, 0.14f, 0.12f, 1f)) },
+                focused = { textColor = Color.white, background = Solid(new Color(0.20f, 0.18f, 0.15f, 1f)) },
+            };
+            _button = new GUIStyle(GUI.skin.button)
+            {
+                fontSize = 15,
+                padding = new RectOffset(12, 12, 9, 9),
+                normal   = { textColor = new Color(0.96f, 0.94f, 0.88f), background = Solid(new Color(0.18f, 0.16f, 0.13f, 1f)) },
+                hover    = { textColor = Color.white,                    background = Solid(new Color(0.30f, 0.26f, 0.19f, 1f)) },
+                active   = { textColor = Color.white,                    background = Solid(new Color(0.42f, 0.34f, 0.20f, 1f)) },
+            };
         }
 
         private void OnGUI()
@@ -70,7 +103,8 @@ namespace InscryptionMP
             }
 
             _rect.height = 0f;   // let GUILayout size it
-            _rect = GUILayout.Window(0x4D50, _rect, DrawWindow, GUIContent.none, GUI.skin.box);
+            GUI.DrawTexture(_rect, _panelBg);
+            _rect = GUILayout.Window(0x4D50, _rect, DrawWindow, GUIContent.none, GUIStyle.none);
         }
 
         private void DrawChip()
@@ -79,26 +113,24 @@ namespace InscryptionMP
             var size = _chip.CalcSize(new GUIContent(text));
             var r = new Rect(10f, 10f, size.x + 16f, size.y + 8f);
 
-            var prev = GUI.color;
-            GUI.color = Net.Connected ? new Color(0f, 0.4f, 0f, 0.75f) : new Color(0f, 0f, 0f, 0.65f);
-            GUI.DrawTexture(r, Texture2D.whiteTexture);
-            GUI.color = prev;
+            GUI.DrawTexture(r, _chipBg);
+            GUI.DrawTexture(new Rect(r.x, r.y, 3f, r.height),
+                            Net.Connected ? _accent : Texture2D.whiteTexture);
 
             GUI.Label(r, text, _chip);
         }
 
         private void DrawWindow(int id)
         {
-            GUILayout.Space(4f);
-            GUILayout.Label("INSCRYPTION  ONLINE", _header);
-            GUILayout.Space(6f);
-
-            GUILayout.Label(Net.Connected ? $"Status: {Net.StatusLine}" : $"Status: {Net.StatusLine}", _label);
-            GUILayout.Space(8f);
+            GUILayout.Space(10f);
+            GUILayout.Label("  INSCRYPTION ONLINE", _header);
+            GUILayout.Space(2f);
+            GUILayout.Label($"  {Net.StatusLine}", Net.Connected ? _label : _dim);
+            GUILayout.Space(12f);
 
             GUI.enabled = !Net.Connected && !VersusMode.InMatch;
 
-            GUILayout.Label("Opponent address", _label);
+            GUILayout.Label("  OPPONENT ADDRESS", _dim);
             GUILayout.BeginHorizontal();
             Ip = GUILayout.TextField(Ip, 64, _field);
             GUILayout.Label(":", _label, GUILayout.Width(8f));
@@ -133,11 +165,11 @@ namespace InscryptionMP
             if (VersusMode.LastResult != null && !VersusMode.InMatch)
             {
                 GUILayout.Space(6f);
-                GUILayout.Label($"Last match: {VersusMode.LastResult}", _label);
+                GUILayout.Label($"  Last match: {VersusMode.LastResult}", _label);
             }
 
             GUILayout.Space(6f);
-            GUILayout.Label("F7 menu   F8 start   F12 abort", _label);
+            GUILayout.Label("  F7 menu    F8 start    F12 abort", _dim);
             GUILayout.Space(4f);
 
             GUI.DragWindow();

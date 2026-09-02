@@ -6,6 +6,22 @@ namespace InscryptionMP
         public const string EndTurn = "END";
         public const string Hello = "HELLO 1";
         public const string StartMatch = "START";
+        public const string BoardPrefix = "BOARD ";
+        public const string EmptySlot = "-";
+
+        /// <summary>Authoritative snapshot of the sender's four player slots.</summary>
+        public static string Board(string[] slotCardNames)
+        {
+            return BoardPrefix + string.Join("|", slotCardNames);
+        }
+
+        public static bool TryParseBoard(string msg, out string[] slots)
+        {
+            slots = null;
+            if (msg == null || !msg.StartsWith(BoardPrefix)) return false;
+            slots = msg.Substring(BoardPrefix.Length).Split('|');
+            return true;
+        }
         public const string Won  = "OVER WON";    // sender is telling us THEY won
         public const string Lost = "OVER LOST";
 

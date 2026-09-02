@@ -11,6 +11,23 @@ namespace InscryptionMP
     [HarmonyPatch]
     internal static class Sync
     {
+        /// <summary>Card name in each of our player slots, or "-" for empty.</summary>
+        private static string[] SnapshotPlayerSlots()
+        {
+            var board = Singleton<BoardManager>.Instance;
+            var slots = board != null ? board.PlayerSlotsCopy : null;
+            int count = slots != null ? slots.Count : 4;
+
+            var names = new string[count];
+            for (int i = 0; i < count; i++)
+            {
+                var card = slots[i] != null ? slots[i].Card : null;
+                names[i] = (card != null && card.Info != null) ? card.Info.name : Protocol.EmptySlot;
+            }
+            Trace.Info("[sync] board snapshot: " + string.Join("|", names));
+            return names;
+        }
+
         [HarmonyPatch(typeof(BoardManager), nameof(BoardManager.ResolveCardOnBoard))]
         [HarmonyPrefix]
         private static void OnLocalCardPlayed(PlayableCard card, CardSlot slot)
@@ -33,6 +50,12 @@ namespace InscryptionMP
         private static void OnLocalTurnEnded()
         {
             if (!Net.Connected) return;
+
+            // Send the authoritative state of our side before passing. Replaying
+            // individual plays can't express sacrifices or deaths, so the peer's copy of
+            // our board drifts; this reconciles it every turn.
+            Net.Send(Protocol.Board(SnapshotPlayerSlots()));
+
             TurnOrder.PassedToPeer();
             Net.Send(Protocol.EndTurn);
         }

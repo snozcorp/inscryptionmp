@@ -56,6 +56,12 @@ namespace InscryptionMP
                         yield break;
                     }
 
+                    if (Protocol.TryParseBoard(msg, out string[] slotNames))
+                    {
+                        yield return ReconcileBoard(slotNames);
+                        continue;
+                    }
+
                     if (Protocol.TryParsePlay(msg, out string cardName, out int slotIndex))
                     {
                         yield return PlacePeerCard(cardName, slotIndex);
@@ -98,13 +104,70 @@ namespace InscryptionMP
             CardSlot slot = slots[slotIndex];
             if (slot.Card != null)
             {
-                Trace.Warn($"[opp] slot {slotIndex} occupied - skipping");
-                yield break;
+                // Almost always a sacrifice: they consumed what was here and played over
+                // it. Their side is authoritative, so replace rather than drop the play.
+                Trace.Info($"[opp] slot {slotIndex} occupied - replacing");
+                RemoveCard(slot);
             }
 
             Trace.Info($"[opp] placing peer card '{cardName}' in opponent slot {slotIndex}");
             yield return board.CreateCardInSlot(info, slot);
             yield return new WaitForSeconds(0.15f);
+        }
+
+        /// <summary>
+        /// Makes our copy of the peer's side match the snapshot they sent.
+        ///
+        /// Individual plays can't express sacrifices or combat deaths, so replaying them
+        /// lets the board drift apart permanently. Reconciling against their own view of
+        /// their board each turn keeps the two clients honest.
+        /// </summary>
+        private IEnumerator ReconcileBoard(string[] slotNames)
+        {
+            var board = Singleton<BoardManager>.Instance;
+            if (board == null) yield break;
+
+            var slots = board.OpponentSlotsCopy;
+            int count = Mathf.Min(slotNames.Length, slots.Count);
+
+            for (int i = 0; i < count; i++)
+            {
+                string wanted = slotNames[i];
+                CardSlot slot = slots[i];
+                string actual = (slot.Card != null && slot.Card.Info != null)
+                    ? slot.Card.Info.name
+                    : Protocol.EmptySlot;
+
+                if (wanted == actual) continue;
+
+                if (slot.Card != null)
+                {
+                    Trace.Info($"[opp] reconcile: clearing slot {i} ({actual})");
+                    RemoveCard(slot);
+                    yield return new WaitForSeconds(0.05f);
+                }
+
+                if (wanted != Protocol.EmptySlot)
+                {
+                    CardInfo info = CardLoader.GetCardByName(wanted);
+                    if (info == null)
+                    {
+                        Trace.Error($"[opp] reconcile: unknown card '{wanted}'");
+                        continue;
+                    }
+                    Trace.Info($"[opp] reconcile: slot {i} -> {wanted}");
+                    yield return board.CreateCardInSlot(info, slot);
+                    yield return new WaitForSeconds(0.05f);
+                }
+            }
+        }
+
+        private static void RemoveCard(CardSlot slot)
+        {
+            PlayableCard card = slot.Card;
+            if (card == null) return;
+            card.UnassignFromSlot();
+            card.ExitBoard(0.2f, Vector3.zero);
         }
 
         // No AI, no scripted blueprint: nothing to queue ahead of the player.

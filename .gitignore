@@ -3,3 +3,5 @@ obj/
 decomp/
 types.txt
 .tmp/
+.tmp/
+dist/

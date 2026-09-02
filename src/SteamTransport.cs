@@ -100,7 +100,7 @@ namespace InscryptionMP
             IsHost = true;
             Status = "creating lobby...";
             Trace.Info("[steam] creating lobby");
-            SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypeFriendsOnly, 2);
+            SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypePublic, 2);
         }
 
         public static void RefreshLobbies()

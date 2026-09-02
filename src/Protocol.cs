@@ -5,6 +5,8 @@ namespace InscryptionMP
     {
         public const string EndTurn = "END";
         public const string Hello = "HELLO 1";
+        public const string Won  = "OVER WON";    // sender is telling us THEY won
+        public const string Lost = "OVER LOST";
 
         public static string Play(string cardName, int slotIndex) => $"PLAY {cardName} {slotIndex}";
 

@@ -34,6 +34,13 @@ namespace InscryptionMP
                         yield break;
                     }
 
+                    if (msg == Protocol.Won || msg == Protocol.Lost)
+                    {
+                        // Peer is reporting the outcome from their side; ours is the inverse.
+                        VersusMode.Finish(this, msg == Protocol.Lost, "peer reported result");
+                        yield break;
+                    }
+
                     if (Protocol.TryParsePlay(msg, out string cardName, out int slotIndex))
                     {
                         yield return PlacePeerCard(cardName, slotIndex);
@@ -42,7 +49,8 @@ namespace InscryptionMP
 
                 if (!Net.Connected)
                 {
-                    Trace.Warn("[opp] peer disconnected; ending turn.");
+                    Trace.Warn("[opp] peer disconnected mid-turn - ending match");
+                    VersusMode.Finish(this, playerWon: true, reason: "peer disconnected");
                     yield break;
                 }
 

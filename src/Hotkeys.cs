@@ -3,7 +3,7 @@ using UnityEngine;
 namespace InscryptionMP
 {
     /// <summary>
-    /// Dev harness: F8 start versus match, F9 host, F10 join localhost, F11 status.
+    /// Dev harness: F8 versus match, F9 host, F10 join, F11 status, F12 abort match.
     /// Also draws a small always-on status overlay - without it there is no in-game
     /// feedback at all and you cannot tell a working host from a dead one.
     /// </summary>
@@ -17,6 +17,13 @@ namespace InscryptionMP
             if (Input.GetKeyDown(KeyCode.F10)) Net.Join("127.0.0.1");
             if (Input.GetKeyDown(KeyCode.F8))  VersusMode.StartAnywhere(this);
             VersusMode.TickPendingStart(this);
+            if (Input.GetKeyDown(KeyCode.F12)) VersusMode.Abort(this);
+
+            // If the peer vanishes while we're in a match, don't leave the player sat at a
+            // table waiting on a turn that will never arrive.
+            if (VersusMode.InMatch && !Net.Connected)
+                VersusMode.Finish(this, playerWon: true, reason: "peer disconnected");
+
             if (Input.GetKeyDown(KeyCode.F11))
                 Trace.Info($"[status] {Net.StatusLine}");
         }
@@ -37,7 +44,9 @@ namespace InscryptionMP
             string blocker = VersusMode.Blocker;
             if (blocker != null)                      text += $"   ({blocker})";
             else if (Net.Connected && !VersusMode.InMatch) text += "   [F8] start versus match";
-            else if (VersusMode.InMatch)              text += "   (in match)";
+            else if (VersusMode.InMatch)              text += "   (in match)   [F12] abort";
+            if (!VersusMode.InMatch && VersusMode.LastResult != null)
+                text += $"   last match: {VersusMode.LastResult}";
             var size = _style.CalcSize(new GUIContent(text));
             var rect = new Rect(10f, 10f, size.x + 16f, size.y + 8f);
 

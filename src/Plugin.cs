@@ -14,11 +14,15 @@ namespace InscryptionMP
         public const string Version = "0.1.0";
 
         internal static ManualLogSource Log;
+
+        /// <summary>Persistent DontDestroyOnLoad host for coroutines that must survive scene loads.</summary>
+        internal static MonoBehaviour Runner;
         private Harmony _harmony;
 
         private void Awake()
         {
             Log = Logger;
+            Runner = this;
             Trace.Init();
 
             // Unity swallows coroutine exceptions into its own log, which BepInEx buffers.

@@ -145,11 +145,51 @@ namespace InscryptionMP
             Singleton<TurnManager>.Instance.StartGame(encounter);
         }
 
-        public static void End()
+        /// <summary>Last match result, shown in the overlay until the next match.</summary>
+        public static string LastResult { get; private set; }
+
+        /// <summary>
+        /// Ends the match and returns to the main menu. The campaign save was locked for
+        /// the whole match, so there is nothing to roll back.
+        /// </summary>
+        public static void Finish(MonoBehaviour host, bool playerWon, string reason)
         {
+            if (!InMatch) return;
+
+            LastResult = playerWon ? "you won" : "you lost";
+            Trace.Info($"[versus] match over - {LastResult} ({reason})");
+
+            Net.Send(playerWon ? Protocol.Lost : Protocol.Won);   // their result is our inverse
+
             InMatch = false;
+            PendingStart = false;
             Match.Reset();
-            Trace.Info("[versus] match ended");
+
+            var runner = Plugin.Runner;
+            if (runner != null) runner.StartCoroutine(ReturnToMenu());
+            else MenuController.ReturnToStartScreen();
+        }
+
+        private static IEnumerator ReturnToMenu()
+        {
+            yield return new WaitForSeconds(1.5f);
+            Trace.Info("[versus] returning to main menu");
+            MenuController.ReturnToStartScreen();   // this also clears savingDisabled
+        }
+
+        /// <summary>Escape hatch: always available, always gets the player out.</summary>
+        public static void Abort(MonoBehaviour host)
+        {
+            if (!InMatch && !PendingStart)
+            {
+                Trace.Info("[versus] abort requested but no match is running");
+                return;
+            }
+            Trace.Warn("[versus] match aborted by player");
+            InMatch = false;
+            PendingStart = false;
+            Match.Reset();
+            MenuController.ReturnToStartScreen();
         }
     }
 }

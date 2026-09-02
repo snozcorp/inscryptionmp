@@ -131,6 +131,7 @@ namespace InscryptionMP
             if (NativeDeckBuilder.IsOpen)
             {
                 DrawCardViewHint();
+                DrawCursor();
                 return;
             }
 
@@ -169,25 +170,35 @@ namespace InscryptionMP
         /// The game draws its own cursor into the 3D scene, which our panel then covers -
         /// so you cannot see what you are about to click. Draw a marker on top instead.
         /// </summary>
-        private void DrawCursor() => DrawCursor(_rect);
+        private void DrawCursor() => DrawCursor(default(Rect));
 
-        private void DrawCursor(Rect over)
+        /// <summary>
+        /// The game draws its cursor into the 3D scene, so anything we render covers it.
+        /// Draw our own unconditionally while our UI is up - gating it on "over the panel"
+        /// meant it vanished over the cards, which is exactly where it's needed.
+        /// </summary>
+        private void DrawCursor(Rect _unused)
         {
             Vector3 m = Input.mousePosition;
             float x = m.x;
             float y = Screen.height - m.y;   // GUI space is y-down
 
-            if (!over.Contains(new Vector2(x, y))) return;
+            const float len = 11f;
+            const float thick = 3f;
 
-            const float len = 9f;
-            const float thick = 2f;
+            var dark = new Color(0f, 0f, 0f, 0.9f);
+            var prev = GUI.color;
 
-            // Dark backing so the crosshair reads against any panel colour.
-            GUI.DrawTexture(new Rect(x - len - 1f, y - 1f, len * 2f + 2f, thick + 2f), _panelBg);
-            GUI.DrawTexture(new Rect(x - 1f, y - len - 1f, thick + 2f, len * 2f + 2f), _panelBg);
+            // Dark outline first so it reads against cards, table and panel alike.
+            GUI.color = dark;
+            GUI.DrawTexture(new Rect(x - len - 1f, y - 1f, len * 2f + 2f, thick + 2f), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(x - 1f, y - len - 1f, thick + 2f, len * 2f + 2f), Texture2D.whiteTexture);
 
-            GUI.DrawTexture(new Rect(x - len, y, len * 2f, thick), _accent);
-            GUI.DrawTexture(new Rect(x, y - len, thick, len * 2f), _accent);
+            GUI.color = new Color(1f, 0.85f, 0.35f, 1f);
+            GUI.DrawTexture(new Rect(x - len, y, len * 2f, thick), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(x, y - len, thick, len * 2f), Texture2D.whiteTexture);
+
+            GUI.color = prev;
         }
 
         /// <summary>
@@ -237,7 +248,6 @@ namespace InscryptionMP
                           "Your deck is empty - browse all cards to add some.", _chip);
             }
 
-            DrawCursor(bar);
         }
 
         private void Rule()

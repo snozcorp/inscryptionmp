@@ -58,8 +58,11 @@ END                            peer ended their turn
 - [x] BepInEx 5.4.23.2 (x86) installed into game dir
 - [x] **Plugin loads in the real game; all Harmony patches resolve** (Unity 2019.4.24f1)
 - [x] **One card crossing the wire, both directions** (2026-09-02)
-- [ ] Standalone versus mode (menu entry, own EncounterData)
-- [ ] Two real game clients
+- [x] **Standalone versus mode, launchable from the main menu** (F8)
+- [x] Save protected + player pinned to the table for the duration
+- [ ] Enforce blood/bone cost on peer cards (they are currently free)
+- [ ] Two real game clients instead of a scripted peer
+- [ ] Win/lose handling and a clean exit from a match
 
 ## Known gaps / next
 - No handshake or version check yet (`Protocol.Hello` defined, unused).
@@ -146,3 +149,33 @@ encounter instead:
 - menu entry -> construct `EncounterData` (empty turn plan, our opponent type)
 - `DeckOverride` already supplies both decks
 - no run consumed, no save touched, repeatable test loop with no map walking
+
+## Standalone versus mode
+`F8` from anywhere. If `TurnManager` is missing we load `Part1_Cabin`, wait for the board
+singletons, then start. The match is built as a plain `EncounterData` handed to the public
+`TurnManager.StartGame(EncounterData)` overload - no `CardBattleNodeData`, no
+`EncounterBuilder`, no blueprint, no map node consumed.
+
+Key scene facts:
+- Act 1 gameplay scene is **`Part1_Cabin`**, loaded via `LoadingScreenManager.LoadScene`.
+- A menu launch lands in **Map** state (not first person, as first assumed).
+- `SaveManager.savingDisabled` is set for the whole match; `SaveToFile()` honours it, so a
+  match cannot write to the campaign save whatever goes wrong.
+
+### Pinning the player at the table
+`GameFlowManager.UpdateForTransitionToFirstPerson()` polls input every frame, so no view
+state prevents standing up - and standing up mid-match re-reveals the map and desyncs
+`GameFlowManager`. `MatchLock` prefixes `TransitionToFirstPerson` and
+`TransitionToGameState` to swallow them while a match is live.
+
+## Full round trip in a standalone match (2026-09-02)
+```
+-> PLAY Squirrel 1 / END
+<- PLAY Wolf 1 / PLAY Adder 2 / END
+[opp] placing peer card 'Wolf' in opponent slot 1
+```
+
+## Known unfairness
+Peer cards are placed with `BoardManager.CreateCardInSlot`, which bypasses cost entirely -
+the remote player pays no blood or bones. Fixing this properly means syncing sacrifices,
+not just the resulting card.

@@ -24,6 +24,20 @@ namespace InscryptionMP
         {
             Trace.Info("[opp] waiting for peer's turn...");
 
+            // OpponentTurn locks the view because a vanilla opponent takes a second or two.
+            // Ours can block indefinitely on the network, so leave the player free to look
+            // around rather than freezing them in whatever view they happened to be in.
+            var views = Singleton<ViewManager>.Instance;
+            ViewLockState previousLock = ViewLockState.Locked;
+            if (views != null)
+            {
+                previousLock = views.Controller.LockState;
+                views.SwitchToView(View.Default);
+                views.Controller.LockState = ViewLockState.Unlocked;
+            }
+
+            try
+            {
             while (true)
             {
                 if (Net.TryDequeue(out string msg))
@@ -55,6 +69,11 @@ namespace InscryptionMP
                 }
 
                 yield return new WaitForEndOfFrame();
+            }
+            }
+            finally
+            {
+                if (views != null) views.Controller.LockState = previousLock;
             }
         }
 

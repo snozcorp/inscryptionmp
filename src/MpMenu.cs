@@ -145,7 +145,12 @@ namespace InscryptionMP
             _rect = new Rect((Screen.width - PanelW) * 0.5f,
                              (Screen.height - h) * 0.5f,
                              PanelW, h);
-            GUI.Window(0x4D50, _rect, DrawWindow, GUIContent.none, GUIStyle.none);
+            // Deliberately NOT GUI.Window: IMGUI composites windows on top of everything
+            // else drawn in OnGUI regardless of call order, which painted over the cursor
+            // every frame. We draw our own background anyway, so the window bought nothing.
+            GUI.BeginGroup(_rect);
+            DrawWindow(0);
+            GUI.EndGroup();
 
             DrawCursor();
         }

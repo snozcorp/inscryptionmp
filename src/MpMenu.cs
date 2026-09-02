@@ -56,6 +56,16 @@ namespace InscryptionMP
                 }
             }
 
+            // Handled here rather than in the opponent's wait loop so a result lands
+            // whatever phase we're in - including our own turn.
+            if (Net.PendingResult.HasValue)
+            {
+                bool weWon = Net.PendingResult.Value;
+                Net.PendingResult = null;
+                if (VersusMode.InMatch)
+                    VersusMode.Finish(this, weWon, "peer reported the result");
+            }
+
             if (VersusMode.InMatch && !Net.Connected)
                 VersusMode.Finish(this, playerWon: true, reason: "peer disconnected");
         }

@@ -107,6 +107,7 @@ namespace InscryptionMP
                     line = line.Trim();
                     if (line.Length == 0) continue;
                     Trace.Info($"[net] <- {line}");
+                    if (CaptureResult(line)) continue;
                     Inbox.Enqueue(line);
                 }
             }
@@ -118,6 +119,21 @@ namespace InscryptionMP
             if (!TcpConnected || _writer == null) { Trace.Warn($"[net] dropped (not connected): {msg}"); return; }
             try { _writer.WriteLine(msg); Trace.Info($"[net] -> {msg}"); }
             catch (Exception e) { Trace.Error($"[net] send failed: {e.Message}"); }
+        }
+
+        /// <summary>
+        /// Match results bypass the inbox. The queue is only drained while a client waits
+        /// on the opponent's turn, so a result arriving during the winner's own turn would
+        /// sit unread and the match would never end for them.
+        /// </summary>
+        public static bool? PendingResult { get; set; }
+
+        /// <summary>Returns true if the message was a result and has been captured.</summary>
+        public static bool CaptureResult(string line)
+        {
+            if (line == Protocol.Won)  { PendingResult = false; return true; }   // peer won, so we lost
+            if (line == Protocol.Lost) { PendingResult = true;  return true; }
+            return false;
         }
 
         public static bool TryDequeue(out string msg)

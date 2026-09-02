@@ -49,13 +49,6 @@ namespace InscryptionMP
                         yield break;
                     }
 
-                    if (msg == Protocol.Won || msg == Protocol.Lost)
-                    {
-                        // Peer is reporting the outcome from their side; ours is the inverse.
-                        VersusMode.Finish(this, msg == Protocol.Lost, "peer reported result");
-                        yield break;
-                    }
-
                     if (Protocol.TryParseBoard(msg, out string[] slotNames))
                     {
                         yield return ReconcileBoard(slotNames);
@@ -66,6 +59,12 @@ namespace InscryptionMP
                     {
                         yield return PlacePeerCard(cardName, slotIndex);
                     }
+                }
+
+                if (!VersusMode.InMatch)
+                {
+                    Trace.Info("[opp] match ended while waiting");
+                    yield break;
                 }
 
                 if (!Net.Connected)

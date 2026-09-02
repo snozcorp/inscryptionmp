@@ -259,6 +259,7 @@ namespace InscryptionMP
                 if (line.Length == 0) continue;
                 if (line == Protocol.Hello) { Trace.Info("[steam] <- HELLO"); continue; }
                 Trace.Info("[steam] <- " + line);
+                if (Net.CaptureResult(line)) continue;   // results bypass the inbox
                 Inbox.Enqueue(line);
             }
             RecvBuffer.Length = 0;

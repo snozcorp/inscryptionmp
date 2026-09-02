@@ -3,7 +3,7 @@ using UnityEngine;
 namespace InscryptionMP
 {
     /// <summary>
-    /// Dev harness: F9 host, F10 join localhost, F11 status.
+    /// Dev harness: F8 start versus match, F9 host, F10 join localhost, F11 status.
     /// Also draws a small always-on status overlay - without it there is no in-game
     /// feedback at all and you cannot tell a working host from a dead one.
     /// </summary>
@@ -15,6 +15,7 @@ namespace InscryptionMP
         {
             if (Input.GetKeyDown(KeyCode.F9))  Net.Host();
             if (Input.GetKeyDown(KeyCode.F10)) Net.Join("127.0.0.1");
+            if (Input.GetKeyDown(KeyCode.F8))  VersusMode.Start(this);
             if (Input.GetKeyDown(KeyCode.F11))
                 Trace.Info($"[status] {Net.StatusLine}");
         }
@@ -32,6 +33,8 @@ namespace InscryptionMP
             }
 
             string text = $"MP: {Net.StatusLine}";
+            if (Net.Connected && !VersusMode.InMatch) text += "   [F8] start versus match";
+            else if (VersusMode.InMatch)              text += "   (in match)";
             var size = _style.CalcSize(new GUIContent(text));
             var rect = new Rect(10f, 10f, size.x + 16f, size.y + 8f);
 

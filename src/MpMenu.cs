@@ -133,6 +133,8 @@ namespace InscryptionMP
                              (Screen.height - h) * 0.5f,
                              PanelW, h);
             GUI.Window(0x4D50, _rect, DrawWindow, GUIContent.none, GUIStyle.none);
+
+            DrawCursor();
         }
 
         private void DrawChip()
@@ -149,6 +151,29 @@ namespace InscryptionMP
             GUI.DrawTexture(new Rect(r.x, r.y, 3f, r.height),
                             myTurn ? _accent : (Net.Connected ? _rule : _accent));
             GUI.Label(r, text, _chip);
+        }
+
+        /// <summary>
+        /// The game draws its own cursor into the 3D scene, which our panel then covers -
+        /// so you cannot see what you are about to click. Draw a marker on top instead.
+        /// </summary>
+        private void DrawCursor()
+        {
+            Vector3 m = Input.mousePosition;
+            float x = m.x;
+            float y = Screen.height - m.y;   // GUI space is y-down
+
+            if (!_rect.Contains(new Vector2(x, y))) return;
+
+            const float len = 9f;
+            const float thick = 2f;
+
+            // Dark backing so the crosshair reads against any panel colour.
+            GUI.DrawTexture(new Rect(x - len - 1f, y - 1f, len * 2f + 2f, thick + 2f), _panelBg);
+            GUI.DrawTexture(new Rect(x - 1f, y - len - 1f, thick + 2f, len * 2f + 2f), _panelBg);
+
+            GUI.DrawTexture(new Rect(x - len, y, len * 2f, thick), _accent);
+            GUI.DrawTexture(new Rect(x, y - len, thick, len * 2f), _accent);
         }
 
         private void Rule()

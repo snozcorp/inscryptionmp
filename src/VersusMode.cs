@@ -18,6 +18,65 @@ namespace InscryptionMP
     {
         public static bool InMatch { get; private set; }
 
+        /// <summary>Set when a match was requested from the menu and the scene is still loading.</summary>
+        public static bool PendingStart { get; private set; }
+
+        private const string Act1Scene = "Part1_Cabin";
+
+        /// <summary>Human-readable reason a match can't start right now, or null if it can.</summary>
+        public static string Blocker
+        {
+            get
+            {
+                if (!Net.Connected) return "no peer connected";
+                if (InMatch)        return null;
+                if (PendingStart)   return "loading...";
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Entry point that works from anywhere, including the main menu. If we're not in
+        /// the Act 1 scene yet, load it and start the match once its singletons exist.
+        /// </summary>
+        public static void StartAnywhere(MonoBehaviour host)
+        {
+            if (!Net.Connected) { Trace.Warn("[versus] no peer connected"); return; }
+            if (InMatch || PendingStart) return;
+
+            if (Singleton<TurnManager>.Instance != null)
+            {
+                Start(host);
+                return;
+            }
+
+            Trace.Info($"[versus] not in gameplay scene - loading {Act1Scene}");
+
+            // A versus match must never be able to write to the campaign save.
+            SaveManager.savingDisabled = true;
+            SaveManager.LoadFromFile();
+
+            PendingStart = true;
+            LoadingScreenManager.LoadScene(Act1Scene);
+        }
+
+        /// <summary>Polled once the scene has loaded; starts the match when the board is ready.</summary>
+        public static void TickPendingStart(MonoBehaviour host)
+        {
+            if (!PendingStart || InMatch) return;
+
+            if (Singleton<TurnManager>.Instance == null) return;
+            if (Singleton<BoardManager>.Instance == null) return;
+            if (Singleton<PlayerHand>.Instance == null) return;
+
+            var flow = Singleton<GameFlowManager>.Instance;
+            if (flow == null || flow.Transitioning) return;
+
+            PendingStart = false;
+            Trace.Info("[versus] scene ready - starting match");
+            Start(host);
+        }
+
         public static bool CanStart()
         {
             if (!Net.Connected) { Trace.Warn("[versus] no peer connected"); return false; }
@@ -39,6 +98,7 @@ namespace InscryptionMP
         private static IEnumerator StartSequence()
         {
             InMatch = true;
+            SaveManager.savingDisabled = true;   // belt and braces: no save writes during a match
             Trace.Info("[versus] starting match");
 
             var flow = Singleton<GameFlowManager>.Instance;

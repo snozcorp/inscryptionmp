@@ -15,7 +15,8 @@ namespace InscryptionMP
         {
             if (Input.GetKeyDown(KeyCode.F9))  Net.Host();
             if (Input.GetKeyDown(KeyCode.F10)) Net.Join("127.0.0.1");
-            if (Input.GetKeyDown(KeyCode.F8))  VersusMode.Start(this);
+            if (Input.GetKeyDown(KeyCode.F8))  VersusMode.StartAnywhere(this);
+            VersusMode.TickPendingStart(this);
             if (Input.GetKeyDown(KeyCode.F11))
                 Trace.Info($"[status] {Net.StatusLine}");
         }
@@ -33,7 +34,9 @@ namespace InscryptionMP
             }
 
             string text = $"MP: {Net.StatusLine}";
-            if (Net.Connected && !VersusMode.InMatch) text += "   [F8] start versus match";
+            string blocker = VersusMode.Blocker;
+            if (blocker != null)                      text += $"   ({blocker})";
+            else if (Net.Connected && !VersusMode.InMatch) text += "   [F8] start versus match";
             else if (VersusMode.InMatch)              text += "   (in match)";
             var size = _style.CalcSize(new GUIContent(text));
             var rect = new Rect(10f, 10f, size.x + 16f, size.y + 8f);

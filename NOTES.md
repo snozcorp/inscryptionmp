@@ -83,3 +83,15 @@ Verified-valid card names: Wolf, Adder, Bullfrog, Squirrel, Stoat, Grizzly.
 ## Gotcha found the hard way
 BepInEx's log confirms patch resolution but NOT patch correctness — "Harmony patches
 applied" only means the target methods exist with the expected signatures.
+
+## Gotcha: no in-game feedback
+First F9 test "did nothing" from the player's side — but the log showed hosting had
+started fine, twice. There was simply no on-screen indication, so the key got pressed
+again, and the second `Host()` called `Shutdown()` on the live listener.
+
+Two fixes:
+- `Hotkeys.OnGUI` draws a persistent status overlay (top-left). Green when connected.
+- `Net.Host()`/`Net.Join()` are now idempotent — a second press is a no-op, not a teardown.
+
+Lesson: for a mod with no UI, build the status readout before the first live test.
+Verified working via `netstat`: the game process holds `0.0.0.0:27333 LISTENING`.

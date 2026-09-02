@@ -29,6 +29,11 @@ namespace InscryptionMP
 
         public static void Host(int port = DefaultPort)
         {
+            if (_running)
+            {
+                Plugin.Log.LogInfo($"[net] already {(Connected ? "connected" : "hosting")} - ignoring");
+                return;
+            }
             Shutdown();
             IsHost = true;
             _running = true;
@@ -39,6 +44,11 @@ namespace InscryptionMP
 
         public static void Join(string host, int port = DefaultPort)
         {
+            if (_running)
+            {
+                Plugin.Log.LogInfo($"[net] already {(Connected ? "connected" : "connecting")} - ignoring");
+                return;
+            }
             Shutdown();
             IsHost = false;
             _running = true;
@@ -98,6 +108,16 @@ namespace InscryptionMP
         }
 
         public static bool TryDequeue(out string msg) => Inbox.TryDequeue(out msg);
+
+        public static string StatusLine
+        {
+            get
+            {
+                if (Connected) return IsHost ? "connected (host)" : "connected (client)";
+                if (_running)  return IsHost ? "hosting :27333 - waiting for peer" : "connecting...";
+                return "offline  [F9] host  [F10] join localhost";
+            }
+        }
 
         public static void Shutdown()
         {

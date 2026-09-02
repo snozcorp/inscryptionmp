@@ -24,11 +24,17 @@ namespace InscryptionMP
 
         private static readonly ConcurrentQueue<string> Inbox = new ConcurrentQueue<string>();
 
-        public static bool IsHost { get; private set; }
-        public static bool Connected { get; private set; }
+        private static bool TcpIsHost { get; set; }
+
+        public static bool IsHost => SteamTransport.Active ? SteamTransport.IsHost : TcpIsHost;
+        /// <summary>TCP-specific connection state. Prefer <see cref="Connected"/>.</summary>
+        public static bool TcpConnected { get; private set; }
 
         /// <summary>True while a host listener or join attempt is alive.</summary>
-        public static bool Running => _running;
+        public static bool Running => _running || SteamTransport.Active;
+
+        /// <summary>True when either transport has a live peer.</summary>
+        public static bool Connected => SteamTransport.Active ? SteamTransport.Connected : TcpConnected;
 
         public static void Host(int port = DefaultPort)
         {
@@ -38,7 +44,7 @@ namespace InscryptionMP
                 return;
             }
             Shutdown();
-            IsHost = true;
+            TcpIsHost = true;
             _running = true;
             _thread = new Thread(() => HostLoop(port)) { IsBackground = true, Name = "InscryptionMP-Host" };
             _thread.Start();
@@ -53,7 +59,7 @@ namespace InscryptionMP
                 return;
             }
             Shutdown();
-            IsHost = false;
+            TcpIsHost = false;
             _running = true;
             _thread = new Thread(() => JoinLoop(host, port)) { IsBackground = true, Name = "InscryptionMP-Client" };
             _thread.Start();
@@ -72,7 +78,7 @@ namespace InscryptionMP
                 Pump();
             }
             catch (Exception e) { if (_running) Trace.Error($"[net] host error: {e.Message}"); }
-            finally { Connected = false; _running = false; }
+            finally { TcpConnected = false; _running = false; }
         }
 
         private static void JoinLoop(string host, int port)
@@ -85,14 +91,14 @@ namespace InscryptionMP
                 Pump();
             }
             catch (Exception e) { if (_running) Trace.Error($"[net] join error: {e.Message}"); }
-            finally { Connected = false; _running = false; }
+            finally { TcpConnected = false; _running = false; }
         }
 
         private static void Pump()
         {
             var stream = _client.GetStream();
             _writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\n" };
-            Connected = true;
+            TcpConnected = true;
             using (var reader = new StreamReader(stream))
             {
                 string line;
@@ -108,27 +114,34 @@ namespace InscryptionMP
 
         public static void Send(string msg)
         {
-            if (!Connected || _writer == null) { Trace.Warn($"[net] dropped (not connected): {msg}"); return; }
+            if (SteamTransport.Active) { SteamTransport.Send(msg); return; }
+            if (!TcpConnected || _writer == null) { Trace.Warn($"[net] dropped (not connected): {msg}"); return; }
             try { _writer.WriteLine(msg); Trace.Info($"[net] -> {msg}"); }
             catch (Exception e) { Trace.Error($"[net] send failed: {e.Message}"); }
         }
 
-        public static bool TryDequeue(out string msg) => Inbox.TryDequeue(out msg);
+        public static bool TryDequeue(out string msg)
+        {
+            if (SteamTransport.Active) return SteamTransport.TryDequeue(out msg);
+            return Inbox.TryDequeue(out msg);
+        }
 
         public static string StatusLine
         {
             get
             {
-                if (Connected) return IsHost ? "connected (host)" : "connected (client)";
-                if (_running)  return IsHost ? "hosting :27333 - waiting for peer" : "connecting...";
-                return "offline  [F9] host  [F10] join localhost";
+                if (SteamTransport.Active) return "steam: " + SteamTransport.Status;
+                if (TcpConnected) return TcpIsHost ? "connected (host)" : "connected (client)";
+                if (_running)     return TcpIsHost ? "hosting - waiting for peer" : "connecting...";
+                return "offline";
             }
         }
 
         public static void Shutdown()
         {
+            if (SteamTransport.Active) SteamTransport.Shutdown();
             _running = false;
-            Connected = false;
+            TcpConnected = false;
             try { _writer?.Dispose(); } catch { }
             try { _client?.Close(); } catch { }
             try { _listener?.Stop(); } catch { }

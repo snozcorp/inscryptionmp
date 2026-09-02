@@ -186,6 +186,12 @@ namespace InscryptionMP
                 }
 
                 DeckStore.Save();
+
+                // SelectCardFrom drops the picked card from its cleanup list because the
+                // campaign animates it into your deck. Nothing else destroys it, so every
+                // click otherwise leaves a card stranded on the table.
+                if (picked != null) Object.Destroy(picked.gameObject);
+
                 yield return new WaitForSeconds(0.15f);
             }
 

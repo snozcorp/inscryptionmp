@@ -35,6 +35,23 @@ namespace InscryptionMP
             }
         }
 
+        /// <summary>Set while the Act 1 scene loads so we can open as soon as it's ready.</summary>
+        public static bool PendingOpen { get; set; }
+
+        /// <summary>Opens the card view the moment the review table exists after a scene load.</summary>
+        public static void TickPendingOpen(MonoBehaviour host)
+        {
+            if (!PendingOpen || IsOpen) return;
+            if (!Available) return;
+
+            var flow = Singleton<GameFlowManager>.Instance;
+            if (flow == null || flow.Transitioning) return;
+
+            PendingOpen = false;
+            Trace.Info("[deckui] table ready - opening card view");
+            Open(host, poolMode: true);
+        }
+
         public static void Open(MonoBehaviour host, bool poolMode)
         {
             if (IsOpen) return;
@@ -64,7 +81,18 @@ namespace InscryptionMP
             Trace.Info($"[deckui] opening card view ({(PoolMode ? "pool" : "deck")})");
 
             var views = Singleton<ViewManager>.Instance;
+            var flow = Singleton<GameFlowManager>.Instance;
             ViewLockState prevLock = ViewLockState.Unlocked;
+
+            var map = Singleton<GameMap>.Instance;
+            if (map != null && flow != null && flow.CurrentGameState == GameState.Map)
+            {
+                Trace.Info("[deckui] hiding map");
+                views.Controller.SwitchToControlMode(ViewController.ControlMode.MapNoDeckReview);
+                yield return map.HideMapSequence();
+                yield return new WaitForSeconds(0.2f);
+            }
+
             if (views != null)
             {
                 prevLock = views.Controller.LockState;

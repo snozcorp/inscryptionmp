@@ -39,6 +39,7 @@ namespace InscryptionMP
             if (Input.GetKeyDown(KeyCode.F12)) VersusMode.Abort(this);
 
             VersusMode.TickPendingStart(this);
+            NativeDeckBuilder.TickPendingOpen(this);
 
             // Nothing drains the inbox outside a match, so watch for the peer asking us
             // to start one. Without this, only the clicking player enters a battle.
@@ -313,10 +314,11 @@ namespace InscryptionMP
             GUILayout.Label("CARD VIEW  (the game's own table)", _section);
             if (!NativeDeckBuilder.Available)
             {
-                GUILayout.Label("Needs the Act 1 table loaded.", _small);
-                if (GUILayout.Button("Load Table", _button))
+                GUILayout.Label("Loads the game's card table, then opens it.", _small);
+                if (GUILayout.Button("Open Card View", _button))
                 {
                     _open = false;
+                    NativeDeckBuilder.PendingOpen = true;
                     VersusMode.LoadTableOnly();
                 }
             }

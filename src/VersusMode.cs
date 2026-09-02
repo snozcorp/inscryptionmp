@@ -32,6 +32,7 @@ namespace InscryptionMP
                 if (!Net.Connected) return "no peer connected";
                 if (InMatch)        return null;
                 if (PendingStart)   return "loading...";
+                if (!DeckStore.IsValid) return $"deck needs {DeckStore.MinCards}-{DeckStore.MaxCards} cards";
                 return null;
             }
         }
@@ -54,6 +55,14 @@ namespace InscryptionMP
         {
             if (!Net.Connected) { Trace.Warn("[versus] no peer connected"); return; }
             if (InMatch || PendingStart) return;
+
+            if (!DeckStore.IsValid)
+            {
+                Trace.Warn($"[versus] deck has {DeckStore.Deck.Count} cards - needs {DeckStore.MinCards}-{DeckStore.MaxCards}");
+                return;
+            }
+
+            DeckStore.Save();   // don't lose a deck because they forgot to press Save
 
             if (tellPeer)
             {

@@ -15,12 +15,13 @@ namespace InscryptionMP
         internal static string Ip = "127.0.0.1";
         internal static string PortText = Net.DefaultPort.ToString();
 
-        private const float PanelW = 460f;
-        private const float PanelH = 500f;
+        private const float PanelW = 480f;
+        private float PanelH => _tab == 0 ? 500f : 640f;
 
         private bool _open;
         private Rect _rect;
-        private Vector2 _lobbyScroll;
+        private Vector2 _lobbyScroll, _deckScroll, _poolScroll;
+        private int _tab;   // 0 = play, 1 = deck
 
         private GUIStyle _chip, _label, _dim, _header, _section, _field, _button, _small;
         private Texture2D _panelBg, _chipBg, _accent, _rule;
@@ -127,9 +128,10 @@ namespace InscryptionMP
                 return;
             }
 
+            float h = PanelH;
             _rect = new Rect((Screen.width - PanelW) * 0.5f,
-                             (Screen.height - PanelH) * 0.5f,
-                             PanelW, PanelH);
+                             (Screen.height - h) * 0.5f,
+                             PanelW, h);
             GUI.Window(0x4D50, _rect, DrawWindow, GUIContent.none, GUIStyle.none);
         }
 
@@ -160,15 +162,28 @@ namespace InscryptionMP
 
         private void DrawWindow(int id)
         {
-            var full = new Rect(0f, 0f, PanelW, PanelH);
-            GUI.DrawTexture(full, _accent);
-            GUI.DrawTexture(new Rect(2f, 2f, PanelW - 4f, PanelH - 4f), _panelBg);
+            float h = PanelH;
+            GUI.DrawTexture(new Rect(0f, 0f, PanelW, h), _accent);
+            GUI.DrawTexture(new Rect(2f, 2f, PanelW - 4f, h - 4f), _panelBg);
 
-            GUILayout.BeginArea(new Rect(14f, 12f, PanelW - 28f, PanelH - 24f));
+            GUILayout.BeginArea(new Rect(14f, 12f, PanelW - 28f, h - 24f));
 
             GUILayout.Label("INSCRYPTION ONLINE", _header);
             GUILayout.Label(Net.StatusLine, Net.Connected ? _label : _dim);
+            GUILayout.Space(6f);
+
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button(_tab == 0 ? "> PLAY" : "PLAY", _button)) _tab = 0;
+            if (GUILayout.Button(_tab == 1 ? "> DECK" : "DECK", _button)) _tab = 1;
+            GUILayout.EndHorizontal();
             Rule();
+
+            if (_tab == 1)
+            {
+                DrawDeckTab();
+                GUILayout.EndArea();
+                return;
+            }
 
             bool idle = !Net.Connected && !VersusMode.InMatch;
 
@@ -220,9 +235,11 @@ namespace InscryptionMP
             Rule();
 
             // ---- Match ----
-            GUI.enabled = Net.Connected && !VersusMode.InMatch && !VersusMode.PendingStart;
+            GUI.enabled = Net.Connected && !VersusMode.InMatch && !VersusMode.PendingStart && DeckStore.IsValid;
             if (GUILayout.Button("START MATCH", _button)) VersusMode.StartAnywhere(this);
             GUI.enabled = true;
+            if (!DeckStore.IsValid)
+                GUILayout.Label($"Your deck needs {DeckStore.MinCards}-{DeckStore.MaxCards} cards - see the DECK tab.", _small);
 
             GUILayout.Space(4f);
             GUILayout.BeginHorizontal();
@@ -236,6 +253,63 @@ namespace InscryptionMP
             GUILayout.FlexibleSpace();
             GUILayout.Label("F7 menu    F8 start    F12 abort", _small);
             GUILayout.EndArea();
+        }
+
+        private void DrawDeckTab()
+        {
+            var deck = DeckStore.Deck;
+
+            GUILayout.Label($"YOUR DECK   {deck.Count} / {DeckStore.MaxCards}", _section);
+            if (!DeckStore.IsValid)
+                GUILayout.Label($"Needs at least {DeckStore.MinCards} cards to play.", _small);
+
+            // Collapse duplicates so the list reads as "3x Squirrel" rather than repeating.
+            var counts = new System.Collections.Generic.List<string>();
+            foreach (string name in deck)
+                if (!counts.Contains(name)) counts.Add(name);
+
+            _deckScroll = GUILayout.BeginScrollView(_deckScroll, GUILayout.Height(150f));
+            if (counts.Count == 0)
+                GUILayout.Label("Empty - add cards below.", _small);
+            foreach (string name in counts)
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.Label($"{DeckStore.CountOf(name)}x  {name}", _label);
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button("-", _button, GUILayout.Width(34f))) { DeckStore.Remove(name); break; }
+                GUILayout.EndHorizontal();
+            }
+            GUILayout.EndScrollView();
+
+            Rule();
+
+            GUILayout.Label("CARD POOL", _section);
+            _poolScroll = GUILayout.BeginScrollView(_poolScroll, GUILayout.Height(210f));
+            foreach (var card in DeckStore.Pool)
+            {
+                string id = card.name;
+                GUILayout.BeginHorizontal();
+                string cost = card.BloodCost > 0 ? $"{card.BloodCost} blood"
+                            : card.BonesCost > 0 ? $"{card.BonesCost} bones"
+                            : "free";
+                GUILayout.Label($"{card.DisplayedNameEnglish}", _label, GUILayout.Width(160f));
+                GUILayout.Label(cost, _small, GUILayout.Width(70f));
+                GUILayout.FlexibleSpace();
+                int have = DeckStore.CountOf(id);
+                if (have > 0) GUILayout.Label($"x{have}", _dim, GUILayout.Width(28f));
+                GUI.enabled = deck.Count < DeckStore.MaxCards;
+                if (GUILayout.Button("+", _button, GUILayout.Width(34f))) { DeckStore.Add(id); break; }
+                GUI.enabled = true;
+                GUILayout.EndHorizontal();
+            }
+            GUILayout.EndScrollView();
+
+            Rule();
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Save Deck", _button)) DeckStore.Save();
+            if (GUILayout.Button("Reset", _button)) DeckStore.ResetToStarter();
+            GUILayout.EndHorizontal();
+            GUILayout.Label("Each player brings their own deck.", _small);
         }
     }
 }

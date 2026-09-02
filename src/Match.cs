@@ -14,16 +14,6 @@ namespace InscryptionMP
         /// <summary>A match is live whenever a peer is connected.</summary>
         public static bool Active => Net.Connected;
 
-        /// <summary>Both players get this. Names verified present in the shipped card pool.</summary>
-        private static readonly string[] StarterDeck =
-        {
-            "Stoat", "Stoat",
-            "Bullfrog", "Bullfrog",
-            "Wolf", "Wolf",
-            "Adder",
-            "Squirrel", "Squirrel", "Squirrel",
-        };
-
         private static List<CardInfo> _cache;
 
         public static List<CardInfo> Deck
@@ -33,7 +23,7 @@ namespace InscryptionMP
                 if (_cache != null) return _cache;
 
                 var deck = new List<CardInfo>();
-                foreach (string name in StarterDeck)
+                foreach (string name in DeckStore.Deck)
                 {
                     CardInfo info = CardLoader.GetCardByName(name);
                     if (info == null)
@@ -44,7 +34,7 @@ namespace InscryptionMP
                     deck.Add(info);
                 }
 
-                Trace.Info($"[match] built versus deck with {deck.Count} cards");
+                Trace.Info($"[match] built versus deck with {deck.Count} cards from the player's list");
                 _cache = deck;
                 return _cache;
             }

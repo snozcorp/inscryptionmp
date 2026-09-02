@@ -62,7 +62,9 @@ END                            peer ended their turn
 - [x] Save protected + player pinned to the table for the duration
 - [ ] Enforce blood/bone cost on peer cards (they are currently free)
 - [ ] Two real game clients instead of a scripted peer
-- [ ] Win/lose handling and a clean exit from a match
+- [x] **Full match played to a win, clean return to the main menu**
+- [ ] Proper in-game menu (host / join / IP entry) instead of F-keys
+- [ ] Dedicated PvP deck / deck builder
 
 ## Known gaps / next
 - No handshake or version check yet (`Protocol.Hello` defined, unused).
@@ -179,3 +181,27 @@ state prevents standing up - and standing up mid-match re-reveals the map and de
 Peer cards are placed with `BoardManager.CreateCardInSlot`, which bypasses cost entirely -
 the remote player pays no blood or bones. Fixing this properly means syncing sacrifices,
 not just the resulting card.
+
+## Full match verified (2026-09-02)
+```
+bell rang - turn 1  ->  peer plays Stoat
+bell rang - turn 2  ->  peer plays Bullfrog
+bell rang - turn 3
+[versus] match over - you won (battle resolved)
+[versus] returning to main menu
+```
+
+## Bug class worth remembering: "the game assumed this would be instant"
+A vanilla opponent turn takes a second or two, so the engine locks the view for its
+duration. Ours can block indefinitely on the network, which turned that assumption into
+a frozen camera. Expect more of these wherever the engine brackets a short operation.
+
+## Bug: CRLF mismatch (cost ~20 minutes)
+C# `StreamWriter` defaults to CRLF, so lines arrived at the peer as `"END"`. The peer
+stripped only `
+`, so every equality check failed and auto-play never fired - the player
+waited forever on a turn that never came. **Both logs printed identically**, because a
+carriage return is invisible.
+
+`Net` now writes LF explicitly and trims on receive; the peer strips whitespace. When a
+text protocol "obviously matches" but comparisons fail, check the invisible bytes first.

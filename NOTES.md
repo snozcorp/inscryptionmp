@@ -60,8 +60,7 @@ END                            peer ended their turn
 - [x] **One card crossing the wire, both directions** (2026-09-02)
 - [x] **Standalone versus mode, launchable from the main menu** (F8)
 - [x] Save protected + player pinned to the table for the duration
-- [ ] Enforce blood/bone cost on peer cards (they are currently free)
-- [ ] Two real game clients instead of a scripted peer
+- [x] Two real game clients, two machines, two Steam accounts
 - [x] **Full match played to a win, clean return to the main menu**
 - [ ] Proper in-game menu (host / join / IP entry) instead of F-keys
 - [ ] Dedicated PvP deck / deck builder
@@ -197,7 +196,8 @@ duration. Ours can block indefinitely on the network, which turned that assumpti
 a frozen camera. Expect more of these wherever the engine brackets a short operation.
 
 ## Bug: CRLF mismatch (cost ~20 minutes)
-C# `StreamWriter` defaults to CRLF, so lines arrived at the peer as `"END"`. The peer
+C# `StreamWriter` defaults to CRLF, so lines arrived at the peer as `"END
+"`. The peer
 stripped only `
 `, so every equality check failed and auto-play never fired - the player
 waited forever on a turn that never came. **Both logs printed identically**, because a
@@ -205,3 +205,24 @@ carriage return is invisible.
 
 `Net` now writes LF explicitly and trims on receive; the peer strips whitespace. When a
 text protocol "obviously matches" but comparisons fail, check the invisible bytes first.
+
+## Verified working (2026-09-02, two machines over Steam)
+Full matches played end to end: lobby, join, start sync, alternating turns, board state
+holding across sacrifices, and a clean finish on both clients.
+
+### Correction: peer cards are not "free"
+An earlier note claimed remote plays bypassed cost. They don't. Each player's own client
+enforces blood and sacrifices normally, and the board snapshot reflects what remains
+afterwards. Materialising the resulting card on the receiving side without charging that
+player is correct - the cost was already paid where it was owed.
+
+### Match results must bypass the inbox
+Only the loser's client detects a loss locally. It reports the outcome to the peer, but
+that message was originally read only inside NetworkOpponent's wait loop - which runs
+only while a client waits on the opponent's turn. The winner is normally in their *own*
+turn when it arrives, so the message sat unread and the winner was stranded at a
+finished board.
+
+Results now go through `Net.PendingResult`, written by both transports at the point of
+receipt and applied from the menu's update every frame. Anything that must be handled
+regardless of game phase needs the same treatment.

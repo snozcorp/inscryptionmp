@@ -126,6 +126,10 @@ namespace InscryptionMP
 
             views.Controller.SwitchToControlMode(ViewController.ControlMode.CardGameDefault);
             if (flow != null) flow.CurrentGameState = GameState.CardBattle;
+
+            // Force the camera onto the table rather than trusting whatever view the
+            // scene load left us in.
+            views.SwitchToView(View.Default, immediate: false, lockAfter: false);
             yield return new WaitForSeconds(0.35f);
 
             var encounter = new EncounterData

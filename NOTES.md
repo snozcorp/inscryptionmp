@@ -55,9 +55,10 @@ END                            peer ended their turn
 - [x] `NetworkOpponent : Opponent` — network-driven `QueueNewCards`
 - [x] `Sync` — capture local plays + turn end
 - [x] `OpponentInjector` — swap in NetworkOpponent when a session is live
-- [ ] **BepInEx runtime installed into game dir** (blocked: awaiting go-ahead)
-- [ ] Verify plugin loads (F9 host / F10 join localhost / F11 status)
-- [ ] Two clients, one card crossing the wire
+- [x] BepInEx 5.4.23.2 (x86) installed into game dir
+- [x] **Plugin loads in the real game; all Harmony patches resolve** (Unity 2019.4.24f1)
+- [ ] One card crossing the wire (use `tools/peer.py`)
+- [ ] Two real game clients
 
 ## Known gaps / next
 - No handshake or version check yet (`Protocol.Hello` defined, unused).
@@ -66,3 +67,19 @@ END                            peer ended their turn
 - Deck sync: both sides currently use whatever encounter they launched. Needs a real
   "agree on decks" step before this is a fair PvP game.
 - Act 2 (`GBC.Pixel*` classes) is a parallel hierarchy — same approach, different types.
+
+## Testing without a second copy of the game
+Steam won't happily run two instances, so `tools/peer.py` speaks our protocol directly:
+
+1. Launch the game (BepInEx is installed; it loads automatically).
+2. **Press F9 to host BEFORE entering a battle.** `OpponentInjector` only swaps in
+   `NetworkOpponent` if `Net.Connected` is true at `SpawnOpponent` time.
+3. Walk into any Act 1 combat node.
+4. `python tools/peer.py Wolf:1 Adder:2`
+5. Watch `BepInEx/LogOutput.log` for `[opp] placing peer card`.
+
+Verified-valid card names: Wolf, Adder, Bullfrog, Squirrel, Stoat, Grizzly.
+
+## Gotcha found the hard way
+BepInEx's log confirms patch resolution but NOT patch correctness � "Harmony patches
+applied" only means the target methods exist with the expected signatures.

@@ -21,6 +21,48 @@ namespace InscryptionMP
         public static bool PoolMode { get; private set; }
         public static string LastError { get; private set; }
 
+        /// <summary>
+        /// The array crushes everything it is given onto the table, so 57 cards becomes an
+        /// unreadable wall. Show a page at a time instead.
+        /// </summary>
+        public const int PageSize = 10;
+
+        public static int Page { get; private set; }
+        private static bool _refresh;
+
+        public static int PageCount
+        {
+            get
+            {
+                int n = SourceCount();
+                return n <= 0 ? 1 : (n + PageSize - 1) / PageSize;
+            }
+        }
+
+        public static void NextPage()
+        {
+            Page = (Page + 1) % PageCount;
+            _refresh = true;
+        }
+
+        public static void PrevPage()
+        {
+            Page = (Page - 1 + PageCount) % PageCount;
+            _refresh = true;
+        }
+
+        public static void ToggleMode()
+        {
+            PoolMode = !PoolMode;
+            Page = 0;
+            _refresh = true;
+        }
+
+        private static int SourceCount()
+        {
+            return PoolMode ? DeckStore.Pool.Count : DeckStore.Deck.Count;
+        }
+
         /// <summary>Only usable inside the Act 1 scene, where the review table exists.</summary>
         public static bool Available => Singleton<DeckReviewSequencer>.Instance != null;
 
@@ -70,6 +112,8 @@ namespace InscryptionMP
 
             LastError = null;
             PoolMode = poolMode;
+            Page = 0;
+            _refresh = false;
             host.StartCoroutine(Loop(host));
         }
 
@@ -104,11 +148,15 @@ namespace InscryptionMP
 
             while (IsOpen)
             {
+                _refresh = false;
+                if (Page >= PageCount) Page = 0;
+
                 List<CardInfo> cards = BuildList();
                 if (cards.Count == 0)
                 {
-                    Trace.Warn("[deckui] nothing to show");
-                    break;
+                    // An empty deck is normal, not an error - wait for a mode switch.
+                    yield return new WaitUntil(() => _refresh || !IsOpen);
+                    continue;
                 }
 
                 SelectableCard picked = null;
@@ -117,8 +165,10 @@ namespace InscryptionMP
                     new List<CardInfo>(cards),
                     null,
                     c => picked = c,
-                    () => !IsOpen);
+                    () => !IsOpen || _refresh);
 
+                if (!IsOpen) break;
+                if (_refresh) continue;         // page or mode changed
                 if (picked == null) break;      // cancelled
 
                 string id = picked.Info != null ? picked.Info.name : null;
@@ -148,17 +198,28 @@ namespace InscryptionMP
             Trace.Info("[deckui] closed card view");
         }
 
+        /// <summary>The current page of whichever list we're browsing.</summary>
         private static List<CardInfo> BuildList()
         {
-            if (PoolMode) return new List<CardInfo>(DeckStore.Pool);
+            var all = new List<CardInfo>();
 
-            var list = new List<CardInfo>();
-            foreach (string name in DeckStore.Deck)
+            if (PoolMode)
             {
-                CardInfo info = CardLoader.GetCardByName(name);
-                if (info != null) list.Add(info);
+                all.AddRange(DeckStore.Pool);
             }
-            return list;
+            else
+            {
+                foreach (string name in DeckStore.Deck)
+                {
+                    CardInfo info = CardLoader.GetCardByName(name);
+                    if (info != null) all.Add(info);
+                }
+            }
+
+            int start = Page * PageSize;
+            if (start >= all.Count) { Page = 0; start = 0; }
+            int count = Mathf.Min(PageSize, all.Count - start);
+            return all.GetRange(start, count);
         }
     }
 }

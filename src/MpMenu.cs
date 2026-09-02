@@ -169,13 +169,15 @@ namespace InscryptionMP
         /// The game draws its own cursor into the 3D scene, which our panel then covers -
         /// so you cannot see what you are about to click. Draw a marker on top instead.
         /// </summary>
-        private void DrawCursor()
+        private void DrawCursor() => DrawCursor(_rect);
+
+        private void DrawCursor(Rect over)
         {
             Vector3 m = Input.mousePosition;
             float x = m.x;
             float y = Screen.height - m.y;   // GUI space is y-down
 
-            if (!_rect.Contains(new Vector2(x, y))) return;
+            if (!over.Contains(new Vector2(x, y))) return;
 
             const float len = 9f;
             const float thick = 2f;
@@ -188,19 +190,54 @@ namespace InscryptionMP
             GUI.DrawTexture(new Rect(x, y - len, thick, len * 2f), _accent);
         }
 
+        /// <summary>
+        /// Control bar for the 3D card view. The cards themselves are the game's, but
+        /// paging and switching between pool and deck need controls the card array
+        /// doesn't provide.
+        /// </summary>
         private void DrawCardViewHint()
         {
-            string mode = NativeDeckBuilder.PoolMode
-                ? "Click a card to ADD it to your deck"
-                : "Click a card to REMOVE it from your deck";
-            string text = $"{mode}   -   {DeckStore.Deck.Count}/{DeckStore.MaxCards}   -   [F7] done";
+            bool pool = NativeDeckBuilder.PoolMode;
+            string mode = pool ? "CLICK A CARD TO ADD IT" : "CLICK A CARD TO REMOVE IT";
+            string counts = $"deck {DeckStore.Deck.Count}/{DeckStore.MaxCards}" +
+                            $"     page {NativeDeckBuilder.Page + 1}/{NativeDeckBuilder.PageCount}";
 
-            var size = _chip.CalcSize(new GUIContent(text));
-            var r = new Rect((Screen.width - size.x - 20f) * 0.5f, 14f, size.x + 20f, size.y + 10f);
+            const float w = 700f, h = 84f;
+            var bar = new Rect((Screen.width - w) * 0.5f, 12f, w, h);
 
-            GUI.DrawTexture(r, _panelBg);
-            GUI.DrawTexture(new Rect(r.x, r.y, r.width, 2f), _accent);
-            GUI.Label(new Rect(r.x + 10f, r.y + 5f, r.width, r.height), text, _chip);
+            GUI.DrawTexture(bar, _accent);
+            GUI.DrawTexture(new Rect(bar.x + 2f, bar.y + 2f, bar.width - 4f, bar.height - 4f), _panelBg);
+
+            GUILayout.BeginArea(new Rect(bar.x + 12f, bar.y + 8f, bar.width - 24f, bar.height - 16f));
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(mode, _section);
+            GUILayout.FlexibleSpace();
+            GUILayout.Label(counts, _small);
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(4f);
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("< Prev", _button, GUILayout.Width(90f))) NativeDeckBuilder.PrevPage();
+            if (GUILayout.Button("Next >", _button, GUILayout.Width(90f))) NativeDeckBuilder.NextPage();
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button(pool ? "View My Deck" : "Browse All Cards", _button, GUILayout.Width(190f)))
+                NativeDeckBuilder.ToggleMode();
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Done  [F7]", _button, GUILayout.Width(120f))) NativeDeckBuilder.Close();
+            GUILayout.EndHorizontal();
+
+            GUILayout.EndArea();
+
+            if (!pool && DeckStore.Deck.Count == 0)
+            {
+                var hint = new Rect((Screen.width - 400f) * 0.5f, bar.yMax + 16f, 400f, 30f);
+                GUI.DrawTexture(hint, _panelBg);
+                GUI.Label(new Rect(hint.x + 10f, hint.y + 5f, hint.width, hint.height),
+                          "Your deck is empty - browse all cards to add some.", _chip);
+            }
+
+            DrawCursor(bar);
         }
 
         private void Rule()

@@ -57,7 +57,8 @@ END                            peer ended their turn
 - [x] `OpponentInjector` — swap in NetworkOpponent when a session is live
 - [x] BepInEx 5.4.23.2 (x86) installed into game dir
 - [x] **Plugin loads in the real game; all Harmony patches resolve** (Unity 2019.4.24f1)
-- [ ] One card crossing the wire (use `tools/peer.py`)
+- [x] **One card crossing the wire, both directions** (2026-09-02)
+- [ ] Standalone versus mode (menu entry, own EncounterData)
 - [ ] Two real game clients
 
 ## Known gaps / next
@@ -115,3 +116,33 @@ Verified working via `netstat`: the game process holds `0.0.0.0:27333 LISTENING`
 [net] peer connected.
 ```
 Transport, host lifecycle, and status overlay all confirmed against the real game.
+
+## First working round trip (2026-09-02)
+```
+[net]  -> PLAY Bee 0                          local play captured and sent
+[probe] bell rang - local player ended turn 1
+[net]  -> END
+[opp]  waiting for peer's turn...
+[net]  <- PLAY Wolf 1
+[net]  <- PLAY Adder 2
+[opp]  placing peer card 'Wolf' in opponent slot 1
+[opp]  placing peer card 'Adder' in opponent slot 2
+[opp]  peer ended turn.
+```
+Both directions confirmed against the live game. The engine's own combat resolution
+then runs untouched.
+
+### The real blocker, for the record
+The setup hang was never the opponent injection - that worked on the first try. It was
+`DeckInfo.LoadCards()` raising a NullReferenceException on the player's *campaign* deck.
+Serving a fixed versus deck fixed it and is the correct design anyway.
+
+## Next: standalone versus mode
+Hijacking an arbitrary campaign fight couples a match to the player's run - a mid-match
+bug strands them on a map node with input locked. `TurnManager.StartGame(EncounterData)`
+is public and `EncounterData` is a trivial plain class, so a match should build its own
+encounter instead:
+
+- menu entry -> construct `EncounterData` (empty turn plan, our opponent type)
+- `DeckOverride` already supplies both decks
+- no run consumed, no save touched, repeatable test loop with no map walking

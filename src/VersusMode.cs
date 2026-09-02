@@ -178,6 +178,11 @@ namespace InscryptionMP
         {
             InMatch = true;
             SaveManager.savingDisabled = true;   // belt and braces: no save writes during a match
+
+            // The host takes the first turn; the joiner waits. Without this both clients
+            // play simultaneously and never see each other's cards until a bell rings.
+            TurnOrder.BeginMatch(Net.IsHost);
+
             Trace.Info("[versus] starting match");
 
             var flow = Singleton<GameFlowManager>.Instance;

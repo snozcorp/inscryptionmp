@@ -135,12 +135,17 @@ namespace InscryptionMP
 
         private void DrawChip()
         {
-            string text = $"MP: {Net.StatusLine}    [F7] menu";
+            string turn = VersusMode.InMatch
+                ? (TurnOrder.IsMyTurn ? "  |  YOUR TURN" : "  |  opponent's turn")
+                : "";
+            string text = $"MP: {Net.StatusLine}{turn}    [F7] menu";
             var size = _chip.CalcSize(new GUIContent(text));
             var r = new Rect(10f, 10f, size.x + 16f, size.y + 8f);
 
             GUI.DrawTexture(r, _chipBg);
-            GUI.DrawTexture(new Rect(r.x, r.y, 3f, r.height), _accent);
+            bool myTurn = VersusMode.InMatch && TurnOrder.IsMyTurn;
+            GUI.DrawTexture(new Rect(r.x, r.y, 3f, r.height),
+                            myTurn ? _accent : (Net.Connected ? _rule : _accent));
             GUI.Label(r, text, _chip);
         }
 

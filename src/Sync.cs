@@ -33,6 +33,7 @@ namespace InscryptionMP
         private static void OnLocalTurnEnded()
         {
             if (!Net.Connected) return;
+            TurnOrder.PassedToPeer();
             Net.Send(Protocol.EndTurn);
         }
     }

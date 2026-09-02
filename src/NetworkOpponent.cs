@@ -45,6 +45,7 @@ namespace InscryptionMP
                     if (msg == Protocol.EndTurn)
                     {
                         Trace.Info("[opp] peer ended turn.");
+                        TurnOrder.TakenFromPeer();
                         yield break;
                     }
 

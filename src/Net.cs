@@ -233,6 +233,24 @@ namespace InscryptionMP
             Send(Protocol.Hello);
         }
 
+        /// <summary>
+        /// Drops gameplay messages left over from a previous match, keeping the connection.
+        ///
+        /// A match can end while the peer still has a play in flight - they don't know it's
+        /// over until our OVER reaches them. Those messages stayed queued and were drained
+        /// by the *next* match, putting a card on the board that was never played in it and
+        /// letting it attack. Control messages are captured out-of-band before they reach
+        /// this queue, so nothing here is worth keeping across matches.
+        /// </summary>
+        public static void FlushInbox()
+        {
+            int dropped = 0;
+            while (Inbox.TryDequeue(out _)) dropped++;
+            dropped += SteamTransport.FlushInbox();
+
+            if (dropped > 0) Trace.Warn($"[net] dropped {dropped} stale message(s) from the last match");
+        }
+
         public static bool TryDequeue(out string msg)
         {
             if (UseSteam) return SteamTransport.TryDequeue(out msg);

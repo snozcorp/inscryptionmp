@@ -1,4 +1,5 @@
 using DiskCardGame;
+using GBC;
 
 namespace InscryptionMP
 {
@@ -59,6 +60,32 @@ namespace InscryptionMP
         public static bool UsesPixelArt(MatchAct act) => act == MatchAct.Act2;
 
         /// <summary>
+        /// Whether this act's scene has a GameFlowManager.
+        ///
+        /// Act 1 and Act 3 are explorable scenes with a flow manager driving their game
+        /// states. GBC_CardBattle is a self-contained battle scene - the flow around it
+        /// lives in the overworld scene it is loaded from, so there is no flow manager
+        /// here at all and waiting for one waits forever.
+        /// </summary>
+        public static bool HasFlowManager(MatchAct act) => act != MatchAct.Act2;
+
+        /// <summary>
+        /// Which board theme the GBC table should dress itself in. The theme is normally
+        /// chosen by the NPC being fought; with no NPC, follow whatever the player's own
+        /// deck is mostly made of.
+        /// </summary>
+        public static PixelBoardSpriteSetter.BoardTheme ThemeForTemple(CardTemple temple)
+        {
+            switch (temple)
+            {
+                case CardTemple.Tech:   return PixelBoardSpriteSetter.BoardTheme.Tech;
+                case CardTemple.Undead: return PixelBoardSpriteSetter.BoardTheme.Undead;
+                case CardTemple.Wizard: return PixelBoardSpriteSetter.BoardTheme.Wizard;
+                default:                return PixelBoardSpriteSetter.BoardTheme.Nature;
+            }
+        }
+
+        /// <summary>
         /// Whether this act's table grants energy. TurnManager grants it when the active
         /// scene is Act 2 or Act 3, so Act 1 cards must be payable with blood and bones.
         /// </summary>
@@ -101,16 +128,5 @@ namespace InscryptionMP
             return "-act" + (int)act;
         }
 
-        /// <summary>
-        /// Acts proven to work end to end. Act 1 is shipped; the others are being brought
-        /// up and should not be offered to players until they actually play.
-        /// </summary>
-        public static bool IsSupported(MatchAct act)
-        {
-            return act == MatchAct.Act1 || Experimental;
-        }
-
-        /// <summary>Set from config to expose acts that are still being worked on.</summary>
-        public static bool Experimental { get; set; }
     }
 }

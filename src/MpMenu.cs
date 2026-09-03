@@ -76,7 +76,10 @@ namespace InscryptionMP
                 if (!VersusMode.InMatch && !VersusMode.PendingStart)
                 {
                     // The host picks the act; we follow, so both load the same scene.
+                    // Selected too, not just Current: the deck store is keyed on Selected,
+                    // so leaving it behind would bring our Act 1 deck to their Act 3 table.
                     ActInfo.Current = act;
+                    ActInfo.Selected = act;
                     Trace.Info($"[versus] peer started a {ActInfo.Name(act)} match - joining");
                     VersusMode.StartAnywhere(this, tellPeer: false);
                 }
@@ -332,18 +335,14 @@ namespace InscryptionMP
             GUILayout.BeginHorizontal();
             foreach (MatchAct act in new[] { MatchAct.Act1, MatchAct.Act2, MatchAct.Act3 })
             {
-                bool supported = ActInfo.IsSupported(act);
                 bool selected = ActInfo.Selected == act;
-                GUI.enabled = !VersusMode.InMatch && supported;
-
-                string label = (selected ? "> " : "") + ActInfo.Name(act) + (supported ? "" : " (n/a)");
+                string label = (selected ? "> " : "") + ActInfo.Name(act);
                 if (GUILayout.Button(label, _button)) ActInfo.Selected = act;
             }
             GUILayout.EndHorizontal();
             GUI.enabled = true;
 
-            if (ActInfo.Selected != MatchAct.Act1)
-                GUILayout.Label("Experimental - this act is still being brought up.", _small);
+            GUILayout.Label("Each act has its own deck. The host's choice is used.", _small);
 
             Rule();
 

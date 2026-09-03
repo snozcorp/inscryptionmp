@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using DiskCardGame;
+using GBC;
 using UnityEngine;
 
 namespace InscryptionMP
@@ -22,8 +23,15 @@ namespace InscryptionMP
         /// <summary>Set when a match was requested from the menu and the scene is still loading.</summary>
         public static bool PendingStart { get; private set; }
 
-        /// <summary>Scene for the act being played. Set when a match or deck view starts.</summary>
+        /// <summary>Scene for the act being played.</summary>
         private static string ActScene => ActInfo.SceneFor(ActInfo.Current);
+
+        /// <summary>
+        /// The scene the deck browser runs in - always Act 1's cabin, whichever act's deck
+        /// is being edited. The browser is built on SelectableCardArray, which only exists
+        /// on the 3D table; other acts' cards are shown there via CardRenderFallbacks.
+        /// </summary>
+        private static string DeckTableScene => ActInfo.SceneFor(MatchAct.Act1);
 
         /// <summary>Human-readable reason a match can't start right now, or null if it can.</summary>
         public static string Blocker
@@ -100,7 +108,7 @@ namespace InscryptionMP
             // A versus match must never be able to write to the campaign save.
             SaveManager.savingDisabled = true;
 
-            PrepareIsolatedRun();
+            PrepareIsolatedRun(ActInfo.Current);
 
             PendingStart = true;
             LoadingScreenManager.LoadScene(ActScene);
@@ -114,7 +122,7 @@ namespace InscryptionMP
         /// instead of borrowing theirs, and stash whatever was there so the campaign is
         /// untouched. Saving is disabled throughout, so none of this reaches disk.
         /// </summary>
-        private static void PrepareIsolatedRun()
+        private static void PrepareIsolatedRun(MatchAct act)
         {
             try
             {
@@ -130,33 +138,36 @@ namespace InscryptionMP
                 // deck card view, and the view doesn't restore - so stashing again would
                 // capture the synthetic run we just installed and later "restore" that
                 // over their real one.
-                if (_stashedRun == null)
+                if (!_stashed)
                 {
                     _stashedRun = save.currentRun;
                     _stashedScene = save.currentScene;
+                    _stashedGbc = save.gbcData;
+                    _stashedPart3 = save.part3Data;
+                    _stashed = true;
                 }
                 else
                 {
-                    Trace.Info("[versus] campaign run already stashed - keeping it");
+                    Trace.Info("[versus] campaign state already stashed - keeping it");
                 }
 
                 save.ResetPart1Run();          // fresh run + starter deck, in memory only
-                save.currentScene = ActScene;
+                save.currentScene = ActInfo.SceneFor(act);
 
                 // Act 3 keeps its own save data - map areas, world position, bounty. Its
                 // scene is an explorable holo world, and without this it comes up holding
                 // Act 1 state and tries to put the player back on the map.
-                if (ActInfo.Current == MatchAct.Act3)
+                if (act == MatchAct.Act3)
                 {
-                    if (save.part3Data == null) save.part3Data = new Part3SaveData();
+                    save.part3Data = new Part3SaveData();
                     save.part3Data.Initialize();
-                    Trace.Info("[versus] initialised Part 3 save data for the match");
+                    Trace.Info("[versus] gave the match its own Part 3 save data");
                 }
-                else if (ActInfo.Current == MatchAct.Act2)
+                else if (act == MatchAct.Act2)
                 {
-                    if (save.gbcData == null) save.gbcData = new GBC.SaveData();
+                    save.gbcData = new GBC.SaveData();
                     save.gbcData.Initialize();
-                    Trace.Info("[versus] initialised GBC save data for the match");
+                    Trace.Info("[versus] gave the match its own GBC save data");
                 }
 
                 // A synthetic run starts with the intro unplayed, which triggers Leshy's
@@ -164,7 +175,7 @@ namespace InscryptionMP
                 if (save.currentRun != null) save.currentRun.runIntroCompleted = true;
                 Opponent.debugSkipIntro = true;
 
-                Trace.Info("[versus] synthesised an isolated Act 1 run for the match");
+                Trace.Info($"[versus] synthesised an isolated run for {ActInfo.Name(act)}");
             }
             catch (Exception e)
             {
@@ -172,21 +183,36 @@ namespace InscryptionMP
             }
         }
 
+        /// <summary>
+        /// The player's own save state, held while a match or the deck table borrows the
+        /// save file. A flag rather than a null check on the run: a player who has never
+        /// started a run legitimately has none, and testing for null left them with our
+        /// synthetic one.
+        /// </summary>
+        private static bool _stashed;
         private static RunState _stashedRun;
         private static string _stashedScene;
+        private static GBC.SaveData _stashedGbc;
+        private static Part3SaveData _stashedPart3;
 
         /// <summary>Puts the player's own run back after a match.</summary>
         private static void RestoreCampaignRun()
         {
             try
             {
-                if (_stashedRun == null) return;
+                if (!_stashed) return;
                 SaveFile save = SaveManager.SaveFile;
                 if (save != null)
                 {
                     save.currentRun = _stashedRun;
                     if (_stashedScene != null) save.currentScene = _stashedScene;
-                    Trace.Info("[versus] restored the campaign run");
+
+                    // Acts 2 and 3 keep their progress in their own save data, which the
+                    // match replaced wholesale. Without putting these back, a later save
+                    // would write our throwaway state over the player's campaign.
+                    save.gbcData = _stashedGbc;
+                    save.part3Data = _stashedPart3;
+                    Trace.Info("[versus] restored the campaign run and act save data");
                 }
             }
             catch (Exception e)
@@ -197,6 +223,9 @@ namespace InscryptionMP
             {
                 _stashedRun = null;
                 _stashedScene = null;
+                _stashedGbc = null;
+                _stashedPart3 = null;
+                _stashed = false;
             }
         }
 
@@ -212,6 +241,13 @@ namespace InscryptionMP
         /// </summary>
         public static bool LoadedTableForDeck { get; private set; }
 
+        /// <summary>
+        /// True whenever the mod is driving the scene rather than the campaign - a match,
+        /// a match about to start, or the deck table. Used by patches that should only
+        /// change the game's behaviour for versus play.
+        /// </summary>
+        public static bool VersusContext => InMatch || PendingStart || LoadedTableForDeck;
+
         public static void LoadTableOnly()
         {
             if (Singleton<TurnManager>.Instance != null)
@@ -221,10 +257,10 @@ namespace InscryptionMP
             }
 
             LoadedTableForDeck = true;
-            Trace.Info("[versus] loading the table for deck building");
+            Trace.Info($"[versus] loading {DeckTableScene} to edit the {ActInfo.Name(ActInfo.Selected)} deck");
             SaveManager.savingDisabled = true;
-            PrepareIsolatedRun();
-            LoadingScreenManager.LoadScene(ActScene);
+            PrepareIsolatedRun(MatchAct.Act1);
+            LoadingScreenManager.LoadScene(DeckTableScene);
         }
 
         /// <summary>Polled once the scene has loaded; starts the match when the board is ready.</summary>
@@ -236,8 +272,13 @@ namespace InscryptionMP
             if (Singleton<BoardManager>.Instance == null) return;
             if (Singleton<PlayerHand>.Instance == null) return;
 
-            var flow = Singleton<GameFlowManager>.Instance;
-            if (flow == null || flow.Transitioning) return;
+            // Only wait on the flow manager in acts that actually have one - GBC doesn't,
+            // and gating on it there meant the match never started at all.
+            if (ActInfo.HasFlowManager(ActInfo.Current))
+            {
+                var flow = Singleton<GameFlowManager>.Instance;
+                if (flow == null || flow.Transitioning) return;
+            }
 
             PendingStart = false;
             Trace.Info("[versus] scene ready - starting match");
@@ -269,6 +310,10 @@ namespace InscryptionMP
             Suspended = false;
             Net.Reconnecting = true;
             SaveManager.savingDisabled = true;   // belt and braces: no save writes during a match
+
+            // Start from an empty queue. Anything still buffered belongs to the match that
+            // just finished, and applying it here would materialise phantom cards.
+            Net.FlushInbox();
 
             // The host takes the first turn; the joiner waits. Without this both clients
             // play simultaneously and never see each other's cards until a bell rings.
@@ -323,8 +368,13 @@ namespace InscryptionMP
 
             if (ActInfo.Current == MatchAct.Act1) TableProps.HidePlayerMarker();
 
-            views.Controller.SwitchToControlMode(ViewController.ControlMode.CardGameDefault);
+            // GBC has no ViewManager - it's a fixed 2D camera - so there is no control
+            // mode to switch and nothing to point at the table.
+            if (views != null)
+                views.Controller.SwitchToControlMode(ViewController.ControlMode.CardGameDefault);
             if (flow != null) flow.CurrentGameState = GameState.CardBattle;
+
+            if (ActInfo.Current == MatchAct.Act2) DressGbcTable();
 
             // Forcing the camera was an Act 1 fix for a scene load leaving the wrong view.
             // Other acts position themselves via their control mode, so don't fight it.
@@ -343,6 +393,58 @@ namespace InscryptionMP
 
             Trace.Info("[versus] handing encounter to TurnManager");
             Singleton<TurnManager>.Instance.StartGame(encounter);
+        }
+
+        /// <summary>
+        /// Applies the parts of the GBC battle setup that normally come from the NPC you
+        /// walked into. Without a theme the board keeps its unset placeholder sprites, and
+        /// the cursor stays hidden because nothing ever unhid it.
+        /// </summary>
+        private static void DressGbcTable()
+        {
+            try
+            {
+                var setter = Singleton<PixelBoardSpriteSetter>.Instance;
+                if (setter != null)
+                {
+                    PixelBoardSpriteSetter.BoardTheme theme = ThemeForDeck();
+                    setter.SetSpritesForTheme(theme);
+                    Trace.Info($"[versus] dressed the GBC board as {theme}");
+                }
+                else
+                {
+                    Trace.Warn("[versus] no PixelBoardSpriteSetter - board keeps placeholder art");
+                }
+
+                PauseMenu.pausingDisabled = false;
+
+                var cursor = Singleton<InteractionCursor>.Instance;
+                if (cursor != null) cursor.SetHidden(hidden: false);
+            }
+            catch (Exception e)
+            {
+                Trace.Error($"[versus] could not dress the GBC table: {e.Message}");
+            }
+        }
+
+        /// <summary>The temple the player's deck leans on most.</summary>
+        private static PixelBoardSpriteSetter.BoardTheme ThemeForDeck()
+        {
+            var counts = new Dictionary<CardTemple, int>();
+            foreach (string name in DeckStore.Deck)
+            {
+                CardInfo info = CardLoader.GetCardByName(name);
+                if (info == null) continue;
+                counts.TryGetValue(info.temple, out int n);
+                counts[info.temple] = n + 1;
+            }
+
+            CardTemple best = CardTemple.Nature;
+            int bestCount = -1;
+            foreach (var kv in counts)
+                if (kv.Value > bestCount) { best = kv.Key; bestCount = kv.Value; }
+
+            return ActInfo.ThemeForTemple(best);
         }
 
         /// <summary>Last match result, shown in the overlay until the next match.</summary>

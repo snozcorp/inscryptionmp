@@ -14,6 +14,8 @@ over the network, against another person.
 
 ## What works
 
+- **All three acts.** Play on Leshy's table, the GBC pixel game, or P03's board. The
+  host picks; both clients load the same act. Each act keeps its own deck.
 - **Steam lobbies and P2P** — host, browse, join. No IPs, no port forwarding, no
   master server. Verified across two machines on two Steam accounts.
 - **Direct IP / LAN** as a fallback for non-Steam copies.
@@ -23,7 +25,8 @@ over the network, against another person.
 - **Real turn order** with a turn indicator; cards appear on the opponent's board as
   they are played.
 - **Authoritative board sync** each turn, so sacrifices and combat deaths stay correct.
-- **Deck builder** using the game's own 3D card table, paged, persisted to disk.
+- **Deck builder** using the game's own 3D card table, paged, persisted to disk — one
+  deck per act, each restricted to cards that act can actually draw and pay for.
 - **Clean match end** on both clients, back to the main menu with the result.
 
 ## Install
@@ -38,20 +41,31 @@ over the network, against another person.
    ```
 3. Launch the game and press **F7**.
 
-Both players need the same build.
+Both players need the same build. **1.1.0 cannot play against 1.0.x** — the act is now
+negotiated when a match starts, so the protocol changed. Mismatched versions are refused
+at the handshake with a message naming both, rather than failing halfway into a match.
 
 ## Playing
 
 1. One player clicks **Host Lobby**, the other clicks **Find Games** and picks the lobby.
-2. Either player clicks **START MATCH** — both clients enter a match together.
-3. The host takes the first turn. Ring the bell to pass.
+2. Pick an **act**. The host's choice decides the table; the other client follows it
+   and uses its deck for that act.
+3. Either player clicks **START MATCH** — both clients enter a match together.
+4. The host takes the first turn. Ring the bell to pass.
 
 **F7** menu · **F8** start match · **F12** abort out of anything
 
 ## Deck building
 
-**F7 → DECK → Open Card View.** Click a card to add it; **View My Deck** to remove.
-Decks are 6–20 cards, stored in `BepInEx/config/inscryptionmp-deck.txt`.
+**F7 → EDIT DECK.** Click a card to add it; **View My Deck** to remove. Decks are 6–20
+cards, stored per act in `BepInEx/config/inscryptionmp-deck-act1.txt` (and `-act2`,
+`-act3`).
+
+Each act offers the cards that belong to it: Leshy's creatures in Act 1, all four
+scrybes in Act 2's GBC game, P03's machines in Act 3. Cards an act can't pay for are
+left out, so an Act 1 deck can't smuggle in energy costs. Act 2 and Act 3 cards are
+drawn on Act 1's table while you browse, so their pixel art appears a little blocky
+there — in a match they render natively.
 
 Each player brings their own deck. Decks are never synchronised — the peer only ever
 resolves a card *name*, which the game's own `CardLoader` already handles.
@@ -67,13 +81,23 @@ slot N materialises in our opponent slot N. The engine's own combat resolution r
 untouched.
 
 That is the whole trick, and it falls out of `Opponent` being abstract with a virtual
-`QueueNewCards()`.
+`QueueNewCards()`. It holds for every act, because each act's opponent derives from that
+same base — `Part1Opponent`, `PixelOpponent` and `Part3Opponent` are all replaced the
+same way.
+
+What differs between acts is everything around the battle: Act 1 and Act 3 are explorable
+scenes with a `GameFlowManager`, while Act 2's `GBC_CardBattle` has none and is driven
+from an overworld we never load. Each act also has its own draw pile reading its own deck
+store. Those differences live in `MatchAct.cs` rather than being special-cased at each
+call site.
 
 See `NOTES.md` for the engine details and the bugs that cost real time.
 
 ## Not done
 
-- Act 2 (`GBC.Pixel*`) is a parallel class hierarchy and is untouched.
+- Acts 2 and 3 are newer than Act 1 and have had less play. They run start to finish -
+  the scene, deck, art, sigils, rulebook and match end - but Act 1 remains the most
+  exercised of the three.
 - Some rarer card effects may not replicate perfectly on the opponent's screen.
   Please report anything that looks wrong.
 - Play with people you trust — this is built for playing with friends, not for

@@ -18,13 +18,47 @@ namespace InscryptionMP
         public const int MinCards = 6;
         public const int MaxCards = 20;
 
-        /// <summary>Used when the player hasn't built a deck yet.</summary>
-        private static readonly string[] Starter =
+        /// <summary>Act 1's starter deck, matching what the campaign hands a new player.</summary>
+        private static readonly string[] Act1Starter =
         {
             "Stoat", "Stoat", "Bullfrog", "Bullfrog",
             "Wolf", "Wolf", "Adder",
             "Squirrel", "Squirrel", "Squirrel",
         };
+
+        private const int StarterSize = 10;
+
+        /// <summary>
+        /// A starting deck for an act the player hasn't built one for.
+        ///
+        /// Only Act 1 gets a hand-written list. The other acts draw theirs from their own
+        /// pool instead of hardcoded names: it can't reference a card that doesn't exist,
+        /// and every pick is legal on that act's table by construction. Act 1's names
+        /// happen to be legal in Act 2 as well, so without this an Act 2 deck silently
+        /// started out as squirrels and wolves.
+        /// </summary>
+        private static List<string> StarterFor(MatchAct act)
+        {
+            if (act == MatchAct.Act1) return new List<string>(Act1Starter);
+
+            var cheapest = Pool.Take(5).ToList();
+            if (cheapest.Count == 0)
+            {
+                Trace.Warn($"[deck] {ActInfo.Name(act)} pool is empty - no starter deck to build");
+                return new List<string>();
+            }
+
+            var deck = new List<string>();
+            while (deck.Count < StarterSize)
+                foreach (CardInfo c in cheapest)
+                {
+                    if (deck.Count >= StarterSize) break;
+                    deck.Add(c.name);
+                }
+
+            Trace.Info($"[deck] built a {deck.Count}-card starter for {ActInfo.Name(act)} from its pool");
+            return deck;
+        }
 
         private static List<string> _deck;
         private static List<CardInfo> _pool;
@@ -79,14 +113,18 @@ namespace InscryptionMP
                 }
                 else
                 {
-                    _deck = new List<string>(Starter);
-                    Trace.Info("[deck] no saved deck - using starter");
+                    _deck = StarterFor(ActInfo.Selected);
+                    Trace.Info($"[deck] no saved deck for {ActInfo.Name(ActInfo.Selected)} - using starter");
+
+                    // An empty starter means the card database wasn't loaded yet. Drop the
+                    // cache so the next access rebuilds it rather than sticking at zero.
+                    if (_deck.Count == 0) _cachedFor = (MatchAct)0;
                 }
             }
             catch (Exception e)
             {
                 Trace.Error($"[deck] load failed: {e.Message}");
-                _deck = new List<string>(Starter);
+                _deck = StarterFor(ActInfo.Selected);
             }
         }
 
@@ -150,7 +188,7 @@ namespace InscryptionMP
 
         public static void ResetToStarter()
         {
-            _deck = new List<string>(Starter);
+            _deck = StarterFor(ActInfo.Selected);
             Match.Reset();
         }
 

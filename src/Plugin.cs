@@ -11,7 +11,7 @@ namespace InscryptionMP
     {
         public const string Guid = "dev.snoz.inscryptionmp";
         public const string Name = "InscryptionMP";
-        public const string Version = "1.0.2";
+        public const string Version = "1.1.0";
 
         internal static ManualLogSource Log;
 
@@ -44,14 +44,10 @@ namespace InscryptionMP
             gameObject.AddComponent<MpMenu>();
             Log.LogInfo("Press F7 for the multiplayer menu.  F8 = start match, F12 = abort.");
 
-            var experimental = Config.Bind("Dev", "ExperimentalActs", false,
-                "Expose Act 2 and Act 3 matches. These are being brought up and are not "
-                + "expected to work yet.");
-            ActInfo.Experimental = experimental.Value;
-            if (ActInfo.Experimental) Trace.Info("[boot] experimental acts enabled");
-
-            var autoHost = Config.Bind("Dev", "AutoHost", true,
-                "Start hosting automatically on launch. Convenient while iterating.");
+            var autoHost = Config.Bind("Dev", "AutoHost", false,
+                "Open a direct-connect listener as soon as the game starts. Off by default: "
+                + "hosting should be a deliberate act from the menu, not something every "
+                + "launch does. Convenient while developing.");
             if (autoHost.Value)
             {
                 Trace.Info("[boot] AutoHost enabled - hosting immediately.");

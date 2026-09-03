@@ -314,6 +314,15 @@ namespace InscryptionMP
             return Inbox.TryDequeue(out msg);
         }
 
+        /// <summary>Drops queued gameplay messages without touching the connection.</summary>
+        public static int FlushInbox()
+        {
+            int dropped = 0;
+            string ignored;
+            while (Inbox.TryDequeue(out ignored)) dropped++;
+            return dropped;
+        }
+
         public static void Reset()
         {
             string ignored;

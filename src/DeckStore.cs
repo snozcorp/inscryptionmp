@@ -211,9 +211,11 @@ namespace InscryptionMP
             // Needs real 3D portrait art; a pixel-only portrait renders wrong at card scale.
             if (c.portraitTex == null) return false;
 
-            // This table's cost sprites cover blood and bones, and it grants no energy.
-            if (c.EnergyCost > 0) return false;
-            if (c.GemsCost != null && c.GemsCost.Count > 0) return false;
+            // Only exclude costs this act's table can't actually pay. Banning energy
+            // outright was an Act 1 rule; Act 3 grants energy and every Tech card uses it,
+            // so applying it everywhere emptied that act's pool entirely.
+            if (c.EnergyCost > 0 && !ActInfo.GrantsEnergy(ActInfo.Selected)) return false;
+            if (c.GemsCost != null && c.GemsCost.Count > 0 && !ActInfo.GrantsGems(ActInfo.Selected)) return false;
 
             return true;
         }

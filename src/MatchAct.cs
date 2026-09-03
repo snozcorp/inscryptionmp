@@ -47,6 +47,15 @@ namespace InscryptionMP
             }
         }
 
+        /// <summary>
+        /// Whether this act's table grants energy. TurnManager grants it when the active
+        /// scene is Act 2 or Act 3, so Act 1 cards must be payable with blood and bones.
+        /// </summary>
+        public static bool GrantsEnergy(MatchAct act) => act != MatchAct.Act1;
+
+        /// <summary>Whether this act's table deals in Mox gems.</summary>
+        public static bool GrantsGems(MatchAct act) => act == MatchAct.Act2;
+
         public static string Name(MatchAct act)
         {
             switch (act)

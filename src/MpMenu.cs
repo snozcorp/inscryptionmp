@@ -24,7 +24,7 @@ namespace InscryptionMP
         {
             get
             {
-                float h = 520f;
+                float h = 660f;
                 if (ActInfo.Selected != MatchAct.Act1) h += 22f;   // experimental notice
                 if (!DeckStore.IsValid) h += 22f;                  // deck size warning
                 if (Net.HandshakeError != null) h += 66f;          // version mismatch block

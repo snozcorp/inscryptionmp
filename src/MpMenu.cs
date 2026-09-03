@@ -282,7 +282,11 @@ namespace InscryptionMP
 
             GUILayout.BeginArea(new Rect(14f, 12f, PanelW - 28f, h - 24f));
 
+            GUILayout.BeginHorizontal();
             GUILayout.Label("INSCRYPTION ONLINE", _header);
+            GUILayout.FlexibleSpace();
+            GUILayout.Label("v" + Plugin.Version, _small);
+            GUILayout.EndHorizontal();
             GUILayout.Label(Net.StatusLine, Net.Connected ? _label : _dim);
             if (Net.HandshakeError != null)
             {
@@ -370,6 +374,12 @@ namespace InscryptionMP
                 GUILayout.Label("They can relaunch and rejoin - nothing is lost.", _small);
             }
 
+            if (!Net.Connected && !VersusMode.InMatch)
+                GUILayout.Label("Host a lobby, or find one, to play someone.", _small);
+            else if (Net.Connected && !VersusMode.InMatch && DeckStore.IsValid
+                     && Net.HandshakeError == null)
+                GUILayout.Label("Either player can start - you both enter together.", _small);
+
             GUILayout.Space(4f);
             GUILayout.BeginHorizontal();
             if (VersusMode.InMatch &&
@@ -382,7 +392,7 @@ namespace InscryptionMP
                 GUILayout.Label($"Last match: {VersusMode.LastResult}", _label);
 
             GUILayout.FlexibleSpace();
-            GUILayout.Label("F7 menu    F8 start    F12 abort", _small);
+            GUILayout.Label("F7 menu     F8 start match     F12 abort", _small);
             GUILayout.EndArea();
         }
 

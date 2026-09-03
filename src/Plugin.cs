@@ -42,7 +42,7 @@ namespace InscryptionMP
             Log.LogInfo("Harmony patches applied.");
 
             gameObject.AddComponent<MpMenu>();
-            Log.LogInfo("Hotkeys: F9=host, F10=join localhost, F11=status");
+            Log.LogInfo("Press F7 for the multiplayer menu.  F8 = start match, F12 = abort.");
 
             var autoHost = Config.Bind("Dev", "AutoHost", true,
                 "Start hosting automatically on launch. Convenient while iterating.");

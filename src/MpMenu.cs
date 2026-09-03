@@ -156,7 +156,6 @@ namespace InscryptionMP
             if (!_open)
             {
                 DrawChip();
-                if (VersusMode.InMatch) DrawResources();
                 return;
             }
 
@@ -272,32 +271,6 @@ namespace InscryptionMP
                           "Your deck is empty - browse all cards to add some.", _chip);
             }
 
-        }
-
-        /// <summary>
-        /// Energy and gems have no display on the Act 1 table - the game only draws those
-        /// in the acts they belong to. Since a match can now use cards from any act, the
-        /// numbers have to be shown somewhere or they're invisible.
-        /// </summary>
-        private void DrawResources()
-        {
-            var res = Singleton<DiskCardGame.ResourcesManager>.Instance;
-            if (res == null) return;
-
-            string text = $"bones {res.PlayerBones}    energy {res.PlayerEnergy}/{res.PlayerMaxEnergy}";
-
-            string gems = "";
-            if (res.HasGem(DiskCardGame.GemType.Green))  gems += " green";
-            if (res.HasGem(DiskCardGame.GemType.Orange)) gems += " orange";
-            if (res.HasGem(DiskCardGame.GemType.Blue))   gems += " blue";
-            if (gems.Length > 0) text += "    mox:" + gems;
-
-            var size = _chip.CalcSize(new GUIContent(text));
-            var r = new Rect(10f, 42f, size.x + 16f, size.y + 8f);
-
-            GUI.DrawTexture(r, _chipBg);
-            GUI.DrawTexture(new Rect(r.x, r.y, 3f, r.height), _accent);
-            GUI.Label(r, text, _chip);
         }
 
         private void Rule()

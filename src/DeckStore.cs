@@ -112,9 +112,9 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// Every card the game ships that a player could normally be offered, across all
-        /// acts, regardless of campaign progression - a versus deck shouldn't be gated
-        /// behind someone's single-player unlocks.
+        /// Every Act 1 card a player could normally be offered, rares included, and
+        /// regardless of campaign progression - a versus deck shouldn't be gated behind
+        /// someone's single-player unlocks.
         /// </summary>
         public static List<CardInfo> Pool
         {
@@ -124,20 +124,22 @@ namespace InscryptionMP
 
                 try
                 {
-                    // Every act's cards, not just Act 1's. The base ResourcesManager
-                    // tracks blood, bones, energy and gems, and ResourceRules grants
-                    // energy during a match - so a Tech or Magnificus card is payable on
-                    // Leshy's table and players can bring decks from any act.
+                    // Act 1 only, deliberately. The resources are shared - the base
+                    // ResourcesManager tracks bones, energy and gems - but the *rendering*
+                    // is not: CardDisplayer3D has portrait and cost art only for Nature
+                    // cards, so other temples come out with blank faces and a black box
+                    // where the cost should be. Supporting them means running the match in
+                    // that act's own scene, not widening this filter.
                     //
-                    // Rare cards were previously excluded by filtering on ChoiceNode
-                    // alone, which quietly dropped Mantis God, Urayuli and friends.
+                    // Rares are included: filtering on ChoiceNode alone quietly dropped
+                    // Mantis God, Urayuli and the rest, and those render fine.
                     _pool = ScriptableObjectLoader<CardInfo>.AllData
                         .Where(c => c != null
+                                    && c.temple == CardTemple.Nature
                                     && c.metaCategories != null
                                     && (c.metaCategories.Contains(CardMetaCategory.ChoiceNode)
                                         || c.metaCategories.Contains(CardMetaCategory.Rare)))
-                        .OrderBy(c => c.temple)
-                        .ThenBy(c => c.BloodCost + c.BonesCost + c.EnergyCost)
+                        .OrderBy(c => c.BloodCost + c.BonesCost)
                         .ThenBy(c => c.DisplayedNameEnglish)
                         .ToList();
                     Trace.Info($"[deck] card pool: {_pool.Count} cards");

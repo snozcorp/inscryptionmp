@@ -152,6 +152,12 @@ namespace InscryptionMP
                     save.part3Data.Initialize();
                     Trace.Info("[versus] initialised Part 3 save data for the match");
                 }
+                else if (ActInfo.Current == MatchAct.Act2)
+                {
+                    if (save.gbcData == null) save.gbcData = new GBC.SaveData();
+                    save.gbcData.Initialize();
+                    Trace.Info("[versus] initialised GBC save data for the match");
+                }
 
                 // A synthetic run starts with the intro unplayed, which triggers Leshy's
                 // tutorial patter. There's no run here to introduce.

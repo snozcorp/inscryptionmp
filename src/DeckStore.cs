@@ -206,10 +206,17 @@ namespace InscryptionMP
         internal static bool CanUseInDeck(CardInfo c)
         {
             if (c == null) return false;
-            if (c.temple != ActInfo.TempleFor(ActInfo.Selected)) return false;
+            if (!ActInfo.AcceptsTemple(ActInfo.Selected, c.temple)) return false;
 
-            // Needs real 3D portrait art; a pixel-only portrait renders wrong at card scale.
-            if (c.portraitTex == null) return false;
+            // Needs whichever portrait this act's renderer actually draws.
+            if (ActInfo.UsesPixelArt(ActInfo.Selected))
+            {
+                if (c.pixelPortrait == null) return false;
+            }
+            else if (c.portraitTex == null)
+            {
+                return false;
+            }
 
             // Only exclude costs this act's table can't actually pay. Banning energy
             // outright was an Act 1 rule; Act 3 grants energy and every Tech card uses it,

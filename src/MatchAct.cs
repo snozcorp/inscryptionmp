@@ -36,16 +36,27 @@ namespace InscryptionMP
             }
         }
 
-        /// <summary>Which card temple belongs to each act's table.</summary>
-        public static CardTemple TempleFor(MatchAct act)
+        /// <summary>
+        /// Whether this act's table will host cards of a given temple. Act 1 is Leshy's
+        /// creatures and Act 3 is P03's machines, but Act 2 is the GBC game where all four
+        /// scrybes' cards appear together - so it accepts everything.
+        /// </summary>
+        public static bool AcceptsTemple(MatchAct act, CardTemple temple)
         {
             switch (act)
             {
-                case MatchAct.Act2: return CardTemple.Undead;   // GBC uses all four; see DeckStore
-                case MatchAct.Act3: return CardTemple.Tech;
-                default:            return CardTemple.Nature;
+                case MatchAct.Act2: return true;
+                case MatchAct.Act3: return temple == CardTemple.Tech;
+                default:            return temple == CardTemple.Nature;
             }
         }
+
+        /// <summary>
+        /// Act 2 renders through PixelCardDisplayer, which draws pixelPortrait rather than
+        /// the 3D portraitTex. A card with only one of the two is fine on the act that
+        /// uses it and blank on the other.
+        /// </summary>
+        public static bool UsesPixelArt(MatchAct act) => act == MatchAct.Act2;
 
         /// <summary>
         /// Whether this act's table grants energy. TurnManager grants it when the active

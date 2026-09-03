@@ -49,6 +49,12 @@ namespace InscryptionMP
                         yield break;
                     }
 
+                    if (Protocol.TryParseSacrifice(msg, out int sacSlot))
+                    {
+                        yield return SacrificePeerCard(sacSlot);
+                        continue;
+                    }
+
                     if (Protocol.TryParseBoard(msg, out string[] slotNames))
                     {
                         yield return ReconcileBoard(slotNames);
@@ -142,8 +148,7 @@ namespace InscryptionMP
                 if (slot.Card != null)
                 {
                     Trace.Info($"[opp] reconcile: clearing slot {i} ({actual})");
-                    RemoveCard(slot);
-                    yield return new WaitForSeconds(0.05f);
+                    yield return RemoveCardAnimated(slot);
                 }
 
                 if (wanted != Protocol.EmptySlot)
@@ -159,6 +164,33 @@ namespace InscryptionMP
                     yield return new WaitForSeconds(0.05f);
                 }
             }
+        }
+
+        /// <summary>Plays the peer's sacrifice with the game's own animation.</summary>
+        private IEnumerator SacrificePeerCard(int slotIndex)
+        {
+            var board = Singleton<BoardManager>.Instance;
+            if (board == null) yield break;
+
+            var slots = board.OpponentSlotsCopy;
+            if (slotIndex < 0 || slotIndex >= slots.Count) yield break;
+
+            PlayableCard card = slots[slotIndex].Card;
+            if (card == null)
+            {
+                Trace.Warn($"[opp] sacrifice: slot {slotIndex} already empty");
+                yield break;
+            }
+
+            Trace.Info($"[opp] peer sacrificed slot {slotIndex}");
+            yield return card.Die(wasSacrifice: true);
+        }
+
+        private static IEnumerator RemoveCardAnimated(CardSlot slot)
+        {
+            PlayableCard card = slot.Card;
+            if (card == null) yield break;
+            yield return card.Die(wasSacrifice: false, null, false);
         }
 
         private static void RemoveCard(CardSlot slot)

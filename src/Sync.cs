@@ -11,6 +11,29 @@ namespace InscryptionMP
     [HarmonyPatch]
     internal static class Sync
     {
+        /// <summary>
+        /// Mirrors a local sacrifice to the peer as it happens.
+        ///
+        /// Without this the opponent only learns at the bell, via the board snapshot, and
+        /// the sacrificed cards simply blink out of existence - which reads as a glitch
+        /// rather than as the other player paying a cost.
+        /// </summary>
+        [HarmonyPatch(typeof(PlayableCard), nameof(PlayableCard.Sacrifice))]
+        [HarmonyPrefix]
+        private static void OnLocalSacrifice(PlayableCard __instance)
+        {
+            if (!Net.Connected || !VersusMode.InMatch) return;
+            if (__instance == null) return;
+
+            CardSlot slot = __instance.Slot;
+            if (slot == null || !slot.IsPlayerSlot) return;
+
+            var tm = Singleton<TurnManager>.Instance;
+            if (tm == null || !tm.IsPlayerTurn) return;
+
+            Net.Send(Protocol.Sacrifice(slot.Index));
+        }
+
         /// <summary>Card name in each of our player slots, or "-" for empty.</summary>
         private static string[] SnapshotPlayerSlots()
         {

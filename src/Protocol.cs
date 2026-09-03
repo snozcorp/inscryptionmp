@@ -28,7 +28,19 @@ namespace InscryptionMP
             return true;
         }
         public const string StartMatch = "START";
+        public const string SacrificePrefix = "SAC ";
         public const string BoardPrefix = "BOARD ";
+
+        /// <summary>A card in the sender's slot N was sacrificed.</summary>
+        public static string Sacrifice(int slotIndex) => SacrificePrefix + slotIndex;
+
+        public static bool TryParseSacrifice(string msg, out int slotIndex)
+        {
+            slotIndex = -1;
+            return msg != null
+                   && msg.StartsWith(SacrificePrefix)
+                   && int.TryParse(msg.Substring(SacrificePrefix.Length), out slotIndex);
+        }
         public const string EmptySlot = "-";
 
         /// <summary>Authoritative snapshot of the sender's four player slots.</summary>

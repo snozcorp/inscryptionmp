@@ -81,3 +81,14 @@ tools/peer.py            # scripted opponent for testing without a second client
 
 Requires the .NET SDK. BepInEx packages come from `https://nuget.bepinex.dev/v3/index.json`
 (see `NuGet.config`) — they are not on nuget.org.
+
+## AI disclosure
+
+Most of this mod's code was written by **Claude Opus 5 (Anthropic)**, working with the
+author across a single extended session: the author drove the design, tested every
+build against a second machine, and found a good number of the bugs.
+
+Disclosed per Thunderstore's policy on LLM and AI-generated files
+(https://wiki.thunderstore.io/llms-and-ai-generated-files). The same disclosure is
+present in the assembly metadata (`AI_Assisted_Creation`, `AI_Model_Vendor`,
+`AI_Model`), and every commit in the repository carries a `Co-Authored-By` trailer.

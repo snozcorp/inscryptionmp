@@ -9,6 +9,14 @@
     <ManagedDir>$(GameDir)\Inscryption_Data\Managed</ManagedDir>
   </PropertyGroup>
 
+  <!-- Thunderstore requires AI-assisted work to be disclosed here and in the README.
+       https://wiki.thunderstore.io/llms-and-ai-generated-files -->
+  <ItemGroup>
+    <AssemblyMetadata Include="AI_Assisted_Creation" Value="This assembly was partially or fully created with the assistance of Generative AI (e.g., Code Suggestions, Refactoring, Documentation Generation)." />
+    <AssemblyMetadata Include="AI_Model_Vendor" Value="Anthropic" />
+    <AssemblyMetadata Include="AI_Model" Value="Claude Opus 5" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="BepInEx.Core" Version="5.*" />
     <PackageReference Include="HarmonyX" Version="2.10.*" />

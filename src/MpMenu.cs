@@ -310,13 +310,13 @@ namespace InscryptionMP
             // Act picker. The act decides which table the match is played on, so it has to
             // be chosen before starting and both clients follow the host's choice.
             GUILayout.Label("ACT", _section);
-            GUI.enabled = !VersusMode.InMatch && !Net.Connected;
+            GUI.enabled = !VersusMode.InMatch;
             GUILayout.BeginHorizontal();
             foreach (MatchAct act in new[] { MatchAct.Act1, MatchAct.Act2, MatchAct.Act3 })
             {
                 bool supported = ActInfo.IsSupported(act);
                 bool selected = ActInfo.Selected == act;
-                GUI.enabled = !VersusMode.InMatch && !Net.Connected && supported;
+                GUI.enabled = !VersusMode.InMatch && supported;
 
                 string label = (selected ? "> " : "") + ActInfo.Name(act) + (supported ? "" : " (n/a)");
                 if (GUILayout.Button(label, _button)) ActInfo.Selected = act;

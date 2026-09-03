@@ -170,28 +170,27 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// Whether a card can both be drawn and be paid for on the Act 1 table.
+        /// Whether a card can be drawn and paid for on the Act 1 table.
         ///
-        /// Temple is no longer the gate: CardRenderFallbacks clamps the cost sprite lookup
-        /// and substitutes a pixel portrait when there's no 3D one, so cards from other
-        /// acts render. What still rules a card out is having no art at all, or a cost in
-        /// a currency this table never grants.
+        /// Other acts' cards are excluded on purpose. Making them look right here needs
+        /// portraits, cost sprites and sigil icons this table doesn't have - each one
+        /// patched reveals the next. The answer is to run the match in the act's own
+        /// scene, which is what per-act matches will do.
         /// </summary>
         internal static bool CanRenderOnAct1Table(CardInfo c)
         {
             if (c == null || c.metaCategories == null) return false;
+            if (c.temple != CardTemple.Nature) return false;
 
             bool offerable = c.metaCategories.Contains(CardMetaCategory.ChoiceNode)
                              || c.metaCategories.Contains(CardMetaCategory.Rare);
             if (!offerable) return false;
 
-            // Needs art of some kind. CardRenderFallbacks substitutes the pixel portrait
-            // when there's no 3D one, so a card only fails here if it has neither.
-            if (c.portraitTex == null && c.alternatePortrait == null && c.pixelPortrait == null)
-                return false;
+            // Must have real 3D portrait art. Substituting a pixel portrait was tried and
+            // looks wrong at card scale even when rescaled.
+            if (c.portraitTex == null) return false;
 
-            // Energy and gems are still out: no energy is granted on the Act 1 table, so
-            // those cards would be unplayable even though they'd now draw.
+            // Act 1's cost sprites cover blood and bones, and no energy is granted here.
             if (c.EnergyCost > 0) return false;
             if (c.GemsCost != null && c.GemsCost.Count > 0) return false;
 

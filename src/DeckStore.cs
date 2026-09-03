@@ -104,15 +104,17 @@ namespace InscryptionMP
             foreach (string name in _deck)
             {
                 CardInfo info = CardLoader.GetCardByName(name);
-                if (info != null && CanRenderOnAct1Table(info)) kept.Add(name);
+                if (info != null && CanUseInDeck(info)) kept.Add(name);
                 else dropped.Add(name);
             }
 
             if (dropped.Count == 0) return;
 
+            // In memory only. Overwriting the file here once destroyed a perfectly good
+            // deck when the filter was wrong, and there's no reason to make that
+            // unrecoverable - the file is re-pruned on every load anyway.
             _deck = kept;
-            Trace.Warn($"[deck] dropped {dropped.Count} card(s) that can't render here: {string.Join(", ", dropped)}");
-            Save();
+            Trace.Warn($"[deck] ignoring {dropped.Count} card(s) not usable in {ActInfo.Name(ActInfo.Selected)}: {string.Join(", ", dropped)}");
         }
 
         public static void Save()
@@ -168,12 +170,12 @@ namespace InscryptionMP
                 {
                     var all = ScriptableObjectLoader<CardInfo>.AllData ?? new List<CardInfo>();
 
-                    _pool = all.Where(CanRenderOnAct1Table)
+                    _pool = all.Where(IsOfferedInPool)
                                .OrderBy(c => c.BloodCost + c.BonesCost)
                                .ThenBy(c => c.DisplayedNameEnglish)
                                .ToList();
 
-                    int rejected = all.Count(c => c != null && !CanRenderOnAct1Table(c));
+                    int rejected = all.Count(c => c != null && !IsOfferedInPool(c));
                     Trace.Info($"[deck] card pool: {_pool.Count} cards ({rejected} excluded as unrenderable here)");
                 }
                 catch (Exception e)
@@ -193,24 +195,40 @@ namespace InscryptionMP
         /// patched reveals the next. The answer is to run the match in the act's own
         /// scene, which is what per-act matches will do.
         /// </summary>
-        internal static bool CanRenderOnAct1Table(CardInfo c)
+        /// <summary>
+        /// Whether a card is legal in a deck for the selected act - it belongs to that
+        /// act's table and can be drawn and paid for there.
+        ///
+        /// Deliberately looser than <see cref="IsOfferedInPool"/>. Squirrels and other
+        /// starter cards are never offered at choice nodes but are perfectly playable, and
+        /// conflating the two once pruned them out of a saved deck.
+        /// </summary>
+        internal static bool CanUseInDeck(CardInfo c)
         {
-            if (c == null || c.metaCategories == null) return false;
+            if (c == null) return false;
             if (c.temple != ActInfo.TempleFor(ActInfo.Selected)) return false;
 
-            bool offerable = c.metaCategories.Contains(CardMetaCategory.ChoiceNode)
-                             || c.metaCategories.Contains(CardMetaCategory.Rare);
-            if (!offerable) return false;
-
-            // Must have real 3D portrait art. Substituting a pixel portrait was tried and
-            // looks wrong at card scale even when rescaled.
+            // Needs real 3D portrait art; a pixel-only portrait renders wrong at card scale.
             if (c.portraitTex == null) return false;
 
-            // Act 1's cost sprites cover blood and bones, and no energy is granted here.
+            // This table's cost sprites cover blood and bones, and it grants no energy.
             if (c.EnergyCost > 0) return false;
             if (c.GemsCost != null && c.GemsCost.Count > 0) return false;
 
             return true;
+        }
+
+        /// <summary>
+        /// Whether a card should appear in the browsable pool. Usable, and something the
+        /// game would normally offer a player rather than an internal or token card.
+        /// </summary>
+        private static bool IsOfferedInPool(CardInfo c)
+        {
+            if (!CanUseInDeck(c)) return false;
+            if (c.metaCategories == null) return false;
+
+            return c.metaCategories.Contains(CardMetaCategory.ChoiceNode)
+                   || c.metaCategories.Contains(CardMetaCategory.Rare);
         }
     }
 }

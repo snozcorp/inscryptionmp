@@ -16,7 +16,25 @@ namespace InscryptionMP
         internal static string PortText = Net.DefaultPort.ToString();
 
         private const float PanelW = 480f;
-        private const float PanelH = 580f;
+        /// <summary>
+        /// Grown to fit whatever optional lines are showing. A fixed height pushed the
+        /// buttons off the bottom as soon as a couple of warnings appeared at once.
+        /// </summary>
+        private float PanelH
+        {
+            get
+            {
+                float h = 520f;
+                if (ActInfo.Selected != MatchAct.Act1) h += 22f;   // experimental notice
+                if (!DeckStore.IsValid) h += 22f;                  // deck size warning
+                if (Net.HandshakeError != null) h += 66f;          // version mismatch block
+                if (VersusMode.Suspended) h += 66f;                // reconnect countdown
+                if (NativeDeckBuilder.LastError != null) h += 22f;
+                if (VersusMode.LastResult != null && !VersusMode.InMatch) h += 22f;
+                if (SteamTransport.Lobbies.Count > 0) h += 90f;    // lobby list
+                return h;
+            }
+        }
 
         private bool _open;
         private bool _matchWasActive;
@@ -399,8 +417,7 @@ namespace InscryptionMP
                           && DeckStore.IsValid && Net.HandshakeError == null;
             if (GUILayout.Button("START MATCH", _button)) VersusMode.StartAnywhere(this);
             GUI.enabled = true;
-            if (!DeckStore.IsValid)
-                GUILayout.Label($"Your deck needs {DeckStore.MinCards}-{DeckStore.MaxCards} cards - see the DECK tab.", _small);
+
 
             if (VersusMode.Suspended)
             {

@@ -22,7 +22,8 @@ namespace InscryptionMP
         /// <summary>Set when a match was requested from the menu and the scene is still loading.</summary>
         public static bool PendingStart { get; private set; }
 
-        private const string Act1Scene = "Part1_Cabin";
+        /// <summary>Scene for the act being played. Set when a match or deck view starts.</summary>
+        private static string ActScene => ActInfo.SceneFor(ActInfo.Current);
 
         /// <summary>Human-readable reason a match can't start right now, or null if it can.</summary>
         public static string Blocker
@@ -75,12 +76,17 @@ namespace InscryptionMP
                 return;
             }
 
+            // The act is fixed for the whole match: it decides the scene, and both clients
+            // must be on the same one.
+            if (tellPeer) ActInfo.Current = ActInfo.Selected;
+            Trace.Info($"[versus] act for this match: {ActInfo.Name(ActInfo.Current)}");
+
             DeckStore.Save();   // don't lose a deck because they forgot to press Save
 
             if (tellPeer)
             {
                 Trace.Info("[versus] telling peer to start");
-                Net.Send(Protocol.StartMatch);
+                Net.Send(Protocol.StartMatch(ActInfo.Current));
             }
 
             if (Singleton<TurnManager>.Instance != null)
@@ -89,7 +95,7 @@ namespace InscryptionMP
                 return;
             }
 
-            Trace.Info($"[versus] not in gameplay scene - loading {Act1Scene}");
+            Trace.Info($"[versus] not in gameplay scene - loading {ActScene} for {ActInfo.Name(ActInfo.Current)}");
 
             // A versus match must never be able to write to the campaign save.
             SaveManager.savingDisabled = true;
@@ -97,7 +103,7 @@ namespace InscryptionMP
             PrepareIsolatedRun();
 
             PendingStart = true;
-            LoadingScreenManager.LoadScene(Act1Scene);
+            LoadingScreenManager.LoadScene(ActScene);
         }
 
         /// <summary>
@@ -135,7 +141,7 @@ namespace InscryptionMP
                 }
 
                 save.ResetPart1Run();          // fresh run + starter deck, in memory only
-                save.currentScene = Act1Scene;
+                save.currentScene = ActScene;
 
                 // A synthetic run starts with the intro unplayed, which triggers Leshy's
                 // tutorial patter. There's no run here to introduce.
@@ -202,7 +208,7 @@ namespace InscryptionMP
             Trace.Info("[versus] loading the table for deck building");
             SaveManager.savingDisabled = true;
             PrepareIsolatedRun();
-            LoadingScreenManager.LoadScene(Act1Scene);
+            LoadingScreenManager.LoadScene(ActScene);
         }
 
         /// <summary>Polled once the scene has loaded; starts the match when the board is ready.</summary>

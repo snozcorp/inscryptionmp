@@ -9,7 +9,7 @@ namespace InscryptionMP
         /// versions connect happily and then desync in confusing ways, so they refuse
         /// each other up front instead.
         /// </summary>
-        public const int Version = 1;
+        public const int Version = 2;
 
         public const string HelloPrefix = "HELLO ";
 
@@ -27,7 +27,20 @@ namespace InscryptionMP
             if (parts.Length > 1) modVersion = parts[1];
             return true;
         }
-        public const string StartMatch = "START";
+        public const string StartPrefix = "START ";
+
+        /// <summary>Asks the peer to start a match on a given act's table.</summary>
+        public static string StartMatch(MatchAct act) => StartPrefix + (int)act;
+
+        public static bool TryParseStart(string msg, out MatchAct act)
+        {
+            act = MatchAct.Act1;
+            if (msg == null || !msg.StartsWith(StartPrefix)) return false;
+            if (!int.TryParse(msg.Substring(StartPrefix.Length), out int n)) return false;
+            if (n < 1 || n > 3) return false;
+            act = (MatchAct)n;
+            return true;
+        }
         public const string SacrificePrefix = "SAC ";
         public const string BoardPrefix = "BOARD ";
 

@@ -16,7 +16,7 @@ namespace InscryptionMP
         internal static string PortText = Net.DefaultPort.ToString();
 
         private const float PanelW = 480f;
-        private const float PanelH = 520f;
+        private const float PanelH = 580f;
 
         private bool _open;
         private bool _matchWasActive;
@@ -51,12 +51,15 @@ namespace InscryptionMP
 
             // Start requests arrive out-of-band. Draining the inbox here instead would
             // silently discard any other message that happened to be queued.
-            if (Net.PendingStartRequest)
+            if (Net.PendingStartRequest.HasValue)
             {
-                Net.PendingStartRequest = false;
+                MatchAct act = Net.PendingStartRequest.Value;
+                Net.PendingStartRequest = null;
                 if (!VersusMode.InMatch && !VersusMode.PendingStart)
                 {
-                    Trace.Info("[versus] peer started a match - joining");
+                    // The host picks the act; we follow, so both load the same scene.
+                    ActInfo.Current = act;
+                    Trace.Info($"[versus] peer started a {ActInfo.Name(act)} match - joining");
                     VersusMode.StartAnywhere(this, tellPeer: false);
                 }
             }
@@ -295,7 +298,7 @@ namespace InscryptionMP
             GUILayout.FlexibleSpace();
             GUILayout.Label("v" + Plugin.Version, _small);
             GUILayout.EndHorizontal();
-            GUILayout.Label(Net.StatusLine, Net.Connected ? _label : _dim);
+            GUILayout.Label(Net.StatusLine + "   -   " + ActInfo.Name(ActInfo.Selected), Net.Connected ? _label : _dim);
             if (Net.HandshakeError != null)
             {
                 GUILayout.Label("INCOMPATIBLE VERSIONS", _section);
@@ -304,10 +307,32 @@ namespace InscryptionMP
             }
             GUILayout.Space(6f);
 
+            // Act picker. The act decides which table the match is played on, so it has to
+            // be chosen before starting and both clients follow the host's choice.
+            GUILayout.Label("ACT", _section);
+            GUI.enabled = !VersusMode.InMatch && !Net.Connected;
+            GUILayout.BeginHorizontal();
+            foreach (MatchAct act in new[] { MatchAct.Act1, MatchAct.Act2, MatchAct.Act3 })
+            {
+                bool supported = ActInfo.IsSupported(act);
+                bool selected = ActInfo.Selected == act;
+                GUI.enabled = !VersusMode.InMatch && !Net.Connected && supported;
+
+                string label = (selected ? "> " : "") + ActInfo.Name(act) + (supported ? "" : " (n/a)");
+                if (GUILayout.Button(label, _button)) ActInfo.Selected = act;
+            }
+            GUILayout.EndHorizontal();
+            GUI.enabled = true;
+
+            if (ActInfo.Selected != MatchAct.Act1)
+                GUILayout.Label("Experimental - this act is still being brought up.", _small);
+
+            Rule();
+
             // Deck editing goes straight to the game's card table - an IMGUI list of card
             // names was a poor second view of something the game already renders properly.
             GUI.enabled = !VersusMode.InMatch;
-            if (GUILayout.Button($"EDIT DECK  ({DeckStore.Deck.Count}/{DeckStore.MaxCards})", _button))
+            if (GUILayout.Button($"EDIT {ActInfo.Name(ActInfo.Selected).ToUpper()} DECK  ({DeckStore.Deck.Count}/{DeckStore.MaxCards})", _button))
                 OpenCardView();
             GUI.enabled = true;
 

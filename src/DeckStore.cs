@@ -29,12 +29,26 @@ namespace InscryptionMP
         private static List<string> _deck;
         private static List<CardInfo> _pool;
 
+        /// <summary>Which act the cached deck and pool belong to.</summary>
+        private static MatchAct _cachedFor = MatchAct.Act1;
+
+        /// <summary>Drops cached state when the selected act changes.</summary>
+        private static void EnsureAct()
+        {
+            if (_cachedFor == ActInfo.Selected) return;
+            _cachedFor = ActInfo.Selected;
+            _deck = null;
+            _pool = null;
+            Match.Reset();
+            Trace.Info($"[deck] switched to {ActInfo.Name(_cachedFor)} deck and pool");
+        }
+
         private static string Path
         {
             get
             {
                 string dir = BepInEx.Paths.ConfigPath ?? ".";
-                return System.IO.Path.Combine(dir, "inscryptionmp-deck.txt");
+                return System.IO.Path.Combine(dir, "inscryptionmp-deck" + ActInfo.DeckSuffix(ActInfo.Selected) + ".txt");
             }
         }
 
@@ -42,6 +56,7 @@ namespace InscryptionMP
         {
             get
             {
+                EnsureAct();
                 if (_deck == null) Load();
                 return _deck;
             }
@@ -146,6 +161,7 @@ namespace InscryptionMP
         {
             get
             {
+                EnsureAct();
                 if (_pool != null) return _pool;
 
                 try
@@ -180,7 +196,7 @@ namespace InscryptionMP
         internal static bool CanRenderOnAct1Table(CardInfo c)
         {
             if (c == null || c.metaCategories == null) return false;
-            if (c.temple != CardTemple.Nature) return false;
+            if (c.temple != ActInfo.TempleFor(ActInfo.Selected)) return false;
 
             bool offerable = c.metaCategories.Contains(CardMetaCategory.ChoiceNode)
                              || c.metaCategories.Contains(CardMetaCategory.Rare);

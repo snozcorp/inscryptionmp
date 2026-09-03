@@ -60,6 +60,7 @@ namespace InscryptionMP
                                 .Where(l => l.Length > 0 && !l.StartsWith("#"))
                                 .ToList();
                     Trace.Info($"[deck] loaded {_deck.Count} cards from disk");
+                    PruneUnrenderable();
                 }
                 else
                 {
@@ -72,6 +73,31 @@ namespace InscryptionMP
                 Trace.Error($"[deck] load failed: {e.Message}");
                 _deck = new List<string>(Starter);
             }
+        }
+
+        /// <summary>
+        /// Drops saved cards that can no longer be drawn here. A deck built while the pool
+        /// was too permissive would otherwise put blank cards on the table mid-match.
+        /// </summary>
+        private static void PruneUnrenderable()
+        {
+            if (_deck == null) return;
+
+            var kept = new List<string>();
+            var dropped = new List<string>();
+
+            foreach (string name in _deck)
+            {
+                CardInfo info = CardLoader.GetCardByName(name);
+                if (info != null && CanRenderOnAct1Table(info)) kept.Add(name);
+                else dropped.Add(name);
+            }
+
+            if (dropped.Count == 0) return;
+
+            _deck = kept;
+            Trace.Warn($"[deck] dropped {dropped.Count} card(s) that can't render here: {string.Join(", ", dropped)}");
+            Save();
         }
 
         public static void Save()
@@ -124,25 +150,15 @@ namespace InscryptionMP
 
                 try
                 {
-                    // Act 1 only, deliberately. The resources are shared - the base
-                    // ResourcesManager tracks bones, energy and gems - but the *rendering*
-                    // is not: CardDisplayer3D has portrait and cost art only for Nature
-                    // cards, so other temples come out with blank faces and a black box
-                    // where the cost should be. Supporting them means running the match in
-                    // that act's own scene, not widening this filter.
-                    //
-                    // Rares are included: filtering on ChoiceNode alone quietly dropped
-                    // Mantis God, Urayuli and the rest, and those render fine.
-                    _pool = ScriptableObjectLoader<CardInfo>.AllData
-                        .Where(c => c != null
-                                    && c.temple == CardTemple.Nature
-                                    && c.metaCategories != null
-                                    && (c.metaCategories.Contains(CardMetaCategory.ChoiceNode)
-                                        || c.metaCategories.Contains(CardMetaCategory.Rare)))
-                        .OrderBy(c => c.BloodCost + c.BonesCost)
-                        .ThenBy(c => c.DisplayedNameEnglish)
-                        .ToList();
-                    Trace.Info($"[deck] card pool: {_pool.Count} cards");
+                    var all = ScriptableObjectLoader<CardInfo>.AllData ?? new List<CardInfo>();
+
+                    _pool = all.Where(CanRenderOnAct1Table)
+                               .OrderBy(c => c.BloodCost + c.BonesCost)
+                               .ThenBy(c => c.DisplayedNameEnglish)
+                               .ToList();
+
+                    int rejected = all.Count(c => c != null && !CanRenderOnAct1Table(c));
+                    Trace.Info($"[deck] card pool: {_pool.Count} cards ({rejected} excluded as unrenderable here)");
                 }
                 catch (Exception e)
                 {
@@ -151,6 +167,39 @@ namespace InscryptionMP
                 }
                 return _pool;
             }
+        }
+
+        /// <summary>
+        /// Whether a card will actually draw correctly on the Act 1 table.
+        ///
+        /// Category alone isn't enough. Rendering is act-specific in two ways that both
+        /// produce a card that looks broken rather than one that fails loudly:
+        ///
+        ///  - <c>CardDisplayer3D</c> draws <c>portraitTex</c>. Cards that only ship a pixel
+        ///    portrait (Act 2) or belong to another temple come out with a blank face.
+        ///  - <c>CardDisplayer.GetCostSpriteForCard</c> indexes fixed sprite arrays, and
+        ///    the Act 1 set covers blood and bones only. An energy or gem cost either
+        ///    draws a black box or throws IndexOutOfRangeException.
+        ///
+        /// So the test is what the card needs to draw, not which list it appears on.
+        /// </summary>
+        internal static bool CanRenderOnAct1Table(CardInfo c)
+        {
+            if (c == null || c.metaCategories == null) return false;
+            if (c.temple != CardTemple.Nature) return false;
+
+            bool offerable = c.metaCategories.Contains(CardMetaCategory.ChoiceNode)
+                             || c.metaCategories.Contains(CardMetaCategory.Rare);
+            if (!offerable) return false;
+
+            // Needs 3D portrait art, not just a pixel one.
+            if (c.portraitTex == null) return false;
+
+            // Act 1's cost sprites only cover blood and bones.
+            if (c.EnergyCost > 0) return false;
+            if (c.GemsCost != null && c.GemsCost.Count > 0) return false;
+
+            return true;
         }
     }
 }

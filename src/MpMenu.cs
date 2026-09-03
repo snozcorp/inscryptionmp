@@ -365,9 +365,19 @@ namespace InscryptionMP
             if (!DeckStore.IsValid)
                 GUILayout.Label($"Your deck needs {DeckStore.MinCards}-{DeckStore.MaxCards} cards - see the DECK tab.", _small);
 
+            if (VersusMode.Suspended)
+            {
+                GUILayout.Space(6f);
+                GUILayout.Label("OPPONENT DISCONNECTED", _section);
+                GUILayout.Label($"Holding the match for {Mathf.CeilToInt(VersusMode.SuspendedSecondsLeft)}s.", _small);
+                GUILayout.Label("They can relaunch and rejoin - nothing is lost.", _small);
+            }
+
             GUILayout.Space(4f);
             GUILayout.BeginHorizontal();
-            if (VersusMode.InMatch && GUILayout.Button("Abort Match", _button)) VersusMode.Abort(this);
+            if (VersusMode.InMatch &&
+                GUILayout.Button(VersusMode.Suspended ? "Give Up Waiting" : "Abort Match", _button))
+                VersusMode.Abort(this);
             if (Net.Running && GUILayout.Button("Disconnect", _button)) Net.Shutdown();
             GUILayout.EndHorizontal();
 

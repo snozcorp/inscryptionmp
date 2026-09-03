@@ -4,8 +4,8 @@ using HarmonyLib;
 namespace InscryptionMP
 {
     /// <summary>
-    /// Milestone 1 probe: confirm we can see and hook the real battle state machine.
-    /// Logs every turn transition and every card the opponent queues.
+    /// Match tracing. Deliberately gated on an active match: these hooks sit on ordinary
+    /// campaign code paths, so ungated they fill the player's log during single player.
     /// </summary>
     [HarmonyPatch]
     internal static class Probe
@@ -14,14 +14,8 @@ namespace InscryptionMP
         [HarmonyPostfix]
         private static void BellRang()
         {
+            if (!VersusMode.InMatch) return;
             Trace.Info($"[probe] bell rang - local player ended turn {Singleton<TurnManager>.Instance?.TurnNumber}");
-        }
-
-        [HarmonyPatch(typeof(Opponent), nameof(Opponent.QueueCard))]
-        [HarmonyPrefix]
-        private static void QueueCard(CardInfo cardInfo, CardSlot slot)
-        {
-            Trace.Info($"[probe] opponent queued '{cardInfo?.DisplayedNameEnglish}' -> slot idx {slot?.Index}");
         }
     }
 }

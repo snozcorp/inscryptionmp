@@ -160,9 +160,14 @@ namespace InscryptionMP
         /// <summary>True once the peer has greeted us with a compatible version.</summary>
         public static bool PeerVerified { get; private set; }
 
+        /// <summary>Set when the peer asks us to start a match.</summary>
+        public static bool PendingStartRequest { get; set; }
+
         /// <summary>Returns true if the message was handled out-of-band.</summary>
         public static bool CaptureResult(string line)
         {
+            if (line == Protocol.StartMatch) { PendingStartRequest = true; return true; }
+
             if (line == Protocol.Won)  { PendingResult = false; return true; }   // peer won, so we lost
             if (line == Protocol.Lost) { PendingResult = true;  return true; }
 
@@ -229,6 +234,7 @@ namespace InscryptionMP
             try { _listener?.Stop(); } catch { }
             while (Inbox.TryDequeue(out _)) { }
             PendingResult = null;
+            PendingStartRequest = false;
             HandshakeError = null;
             PeerVerified = false;
             _writer = null; _client = null; _listener = null;

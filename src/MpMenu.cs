@@ -41,18 +41,15 @@ namespace InscryptionMP
             VersusMode.TickPendingStart(this);
             NativeDeckBuilder.TickPendingOpen(this);
 
-            // Nothing drains the inbox outside a match, so watch for the peer asking us
-            // to start one. Without this, only the clicking player enters a battle.
-            if (!VersusMode.InMatch && !VersusMode.PendingStart && Net.Connected)
+            // Start requests arrive out-of-band. Draining the inbox here instead would
+            // silently discard any other message that happened to be queued.
+            if (Net.PendingStartRequest)
             {
-                while (Net.TryDequeue(out string msg))
+                Net.PendingStartRequest = false;
+                if (!VersusMode.InMatch && !VersusMode.PendingStart)
                 {
-                    if (msg == Protocol.StartMatch)
-                    {
-                        Trace.Info("[versus] peer started a match - joining");
-                        VersusMode.StartAnywhere(this, tellPeer: false);
-                        break;
-                    }
+                    Trace.Info("[versus] peer started a match - joining");
+                    VersusMode.StartAnywhere(this, tellPeer: false);
                 }
             }
 
@@ -394,6 +391,9 @@ namespace InscryptionMP
             var deck = DeckStore.Deck;
 
             GUILayout.Label("CARD VIEW  (the game's own table)", _section);
+            GUI.enabled = !VersusMode.InMatch;
+            if (VersusMode.InMatch)
+                GUILayout.Label("Finish the match to edit your deck.", _small);
             if (!NativeDeckBuilder.Available)
             {
                 GUILayout.Label("Loads the game's card table, then opens it.", _small);
@@ -421,6 +421,7 @@ namespace InscryptionMP
                 GUI.enabled = true;
                 GUILayout.EndHorizontal();
             }
+            GUI.enabled = true;
             if (NativeDeckBuilder.LastError != null)
                 GUILayout.Label(NativeDeckBuilder.LastError, _small);
 

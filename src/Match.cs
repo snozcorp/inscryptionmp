@@ -11,8 +11,12 @@ namespace InscryptionMP
     /// </summary>
     public static class Match
     {
-        /// <summary>A match is live whenever a peer is connected.</summary>
-        public static bool Active => Net.Connected;
+        /// <summary>
+        /// True only during an actual versus match. Keying this off "a peer is connected"
+        /// meant that sitting in a lobby and then playing a normal campaign battle would
+        /// swap the player's campaign deck for their versus deck.
+        /// </summary>
+        public static bool Active => VersusMode.InMatch;
 
         private static List<CardInfo> _cache;
 
@@ -20,7 +24,9 @@ namespace InscryptionMP
         {
             get
             {
-                if (_cache != null) return _cache;
+                // Hand out a copy: the draw pile takes ownership of this list and removes
+                // from it as cards are drawn, which would otherwise eat our cached deck.
+                if (_cache != null) return new List<CardInfo>(_cache);
 
                 var deck = new List<CardInfo>();
                 foreach (string name in DeckStore.Deck)
@@ -36,7 +42,7 @@ namespace InscryptionMP
 
                 Trace.Info($"[match] built versus deck with {deck.Count} cards from the player's list");
                 _cache = deck;
-                return _cache;
+                return new List<CardInfo>(_cache);
             }
         }
 

@@ -97,6 +97,12 @@ namespace InscryptionMP
         public static void Open(MonoBehaviour host, bool poolMode)
         {
             if (IsOpen) return;
+            if (VersusMode.InMatch)
+            {
+                LastError = "finish the match before editing your deck";
+                Trace.Warn("[deckui] " + LastError);
+                return;
+            }
             if (!Available)
             {
                 LastError = "card view needs the Act 1 table - use Load Table first";

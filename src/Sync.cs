@@ -58,7 +58,7 @@ namespace InscryptionMP
         [HarmonyPrefix]
         private static void OnLocalCardPlayed(PlayableCard card, CardSlot slot)
         {
-            if (!Net.Connected) return;
+            if (!Net.Connected || !VersusMode.InMatch) return;
             if (slot == null || card == null) return;
             if (!slot.IsPlayerSlot) return;
 
@@ -75,7 +75,7 @@ namespace InscryptionMP
         [HarmonyPostfix]
         private static void OnLocalTurnEnded()
         {
-            if (!Net.Connected) return;
+            if (!Net.Connected || !VersusMode.InMatch) return;
 
             // Send the authoritative state of our side before passing. Replaying
             // individual plays can't express sacrifices or deaths, so the peer's copy of

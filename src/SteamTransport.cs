@@ -73,6 +73,7 @@ namespace InscryptionMP
         private static Callback<LobbyCreated_t> _cbCreated;
         private static Callback<LobbyEnter_t> _cbEntered;
         private static Callback<P2PSessionRequest_t> _cbSession;
+        private static Callback<LobbyChatUpdate_t> _cbChatUpdate;
         private static CallResult<LobbyMatchList_t> _crList;
 
         private static readonly ConcurrentQueue<string> Inbox = new ConcurrentQueue<string>();
@@ -88,6 +89,7 @@ namespace InscryptionMP
             _cbCreated = Callback<LobbyCreated_t>.Create(OnLobbyCreated);
             _cbEntered = Callback<LobbyEnter_t>.Create(OnLobbyEntered);
             _cbSession = Callback<P2PSessionRequest_t>.Create(OnSessionRequest);
+            _cbChatUpdate = Callback<LobbyChatUpdate_t>.Create(OnLobbyChatUpdate);
             _crList = CallResult<LobbyMatchList_t>.Create(OnLobbyList);
         }
 
@@ -194,6 +196,39 @@ namespace InscryptionMP
             {
                 CSteamID member = SteamMatchmaking.GetLobbyMemberByIndex(_lobby, i);
                 if (member != me) { _peer = member; return; }
+            }
+        }
+
+        /// <summary>
+        /// Steam has no "peer dropped" signal on the P2P channel, so a peer whose game
+        /// died left us waiting on a turn forever. Lobby membership changes are the signal.
+        /// </summary>
+        private static void OnLobbyChatUpdate(LobbyChatUpdate_t e)
+        {
+            var who = new CSteamID(e.m_ulSteamIDUserChanged);
+            const uint left = (uint)(EChatMemberStateChange.k_EChatMemberStateChangeLeft
+                                     | EChatMemberStateChange.k_EChatMemberStateChangeDisconnected
+                                     | EChatMemberStateChange.k_EChatMemberStateChangeKicked);
+
+            if ((e.m_rgfChatMemberStateChange & left) != 0 && who == _peer)
+            {
+                Trace.Warn("[steam] opponent left the lobby");
+                SteamNetworking.CloseP2PSessionWithUser(_peer);
+                _peer = CSteamID.Nil;
+                Connected = false;
+                Status = "opponent disconnected";
+                return;
+            }
+
+            if ((e.m_rgfChatMemberStateChange
+                 & (uint)EChatMemberStateChange.k_EChatMemberStateChangeEntered) != 0
+                && who != SteamUser.GetSteamID())
+            {
+                Trace.Info("[steam] opponent (re)joined the lobby");
+                _peer = who;
+                Connected = true;
+                Status = "connected to " + SteamFriends.GetFriendPersonaName(_peer);
+                Net.SendHello();
             }
         }
 

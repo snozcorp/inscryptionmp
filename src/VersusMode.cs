@@ -183,6 +183,13 @@ namespace InscryptionMP
         /// somewhere to lay cards out. Uses the same isolated run as a match, so the
         /// player's campaign is untouched.
         /// </summary>
+        /// <summary>
+        /// True when we loaded the Act 1 scene purely to host the deck card view, so
+        /// closing that view should return to the title rather than stranding the player
+        /// at an empty table. False if they were already in the scene themselves.
+        /// </summary>
+        public static bool LoadedTableForDeck { get; private set; }
+
         public static void LoadTableOnly()
         {
             if (Singleton<TurnManager>.Instance != null)
@@ -191,6 +198,7 @@ namespace InscryptionMP
                 return;
             }
 
+            LoadedTableForDeck = true;
             Trace.Info("[versus] loading the table for deck building");
             SaveManager.savingDisabled = true;
             PrepareIsolatedRun();
@@ -235,6 +243,7 @@ namespace InscryptionMP
         private static IEnumerator StartSequence()
         {
             InMatch = true;
+            LoadedTableForDeck = false;
             Suspended = false;
             Net.Reconnecting = true;
             SaveManager.savingDisabled = true;   // belt and braces: no save writes during a match
@@ -370,6 +379,21 @@ namespace InscryptionMP
             yield return new WaitForSeconds(1.5f);
             Trace.Info("[versus] returning to main menu");
             MenuController.ReturnToStartScreen();   // this also clears savingDisabled
+        }
+
+        /// <summary>
+        /// Leaves the deck table and goes back to the title. Only meaningful when we
+        /// brought the player here ourselves.
+        /// </summary>
+        public static void LeaveDeckTable()
+        {
+            if (!LoadedTableForDeck || InMatch) return;
+
+            LoadedTableForDeck = false;
+            Trace.Info("[versus] leaving the deck table - back to the title");
+            RestoreCampaignRun();
+            TableProps.RestorePlayerMarker();
+            MenuController.ReturnToStartScreen();   // also clears savingDisabled
         }
 
         /// <summary>Escape hatch: always available, always gets the player out.</summary>

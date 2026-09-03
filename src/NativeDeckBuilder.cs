@@ -204,13 +204,24 @@ namespace InscryptionMP
             }
 
             IsOpen = false;
-            TableProps.RestorePlayerMarker();
             if (views != null)
             {
                 views.SwitchToView(View.Default);
                 views.Controller.LockState = prevLock;
             }
             Trace.Info("[deckui] closed card view");
+
+            // If we loaded this scene purely to show the cards, don't strand the player at
+            // an empty table with no map and no menu.
+            if (VersusMode.LoadedTableForDeck && !VersusMode.InMatch)
+            {
+                yield return new WaitForSeconds(0.35f);
+                VersusMode.LeaveDeckTable();
+            }
+            else
+            {
+                TableProps.RestorePlayerMarker();
+            }
         }
 
         /// <summary>The current page of whichever list we're browsing.</summary>

@@ -40,6 +40,10 @@ namespace InscryptionMP
             VersusMode.TickPendingStart(this);
             NativeDeckBuilder.TickPendingOpen(this);
 
+            // Get out of the way once a match is starting, however it was triggered -
+            // button, hotkey, or the peer asking us to join them.
+            if (_open && (VersusMode.InMatch || VersusMode.PendingStart)) _open = false;
+
             // Start requests arrive out-of-band. Draining the inbox here instead would
             // silently discard any other message that happened to be queued.
             if (Net.PendingStartRequest)

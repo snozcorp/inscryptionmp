@@ -170,32 +170,28 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// Whether a card will actually draw correctly on the Act 1 table.
+        /// Whether a card can both be drawn and be paid for on the Act 1 table.
         ///
-        /// Category alone isn't enough. Rendering is act-specific in two ways that both
-        /// produce a card that looks broken rather than one that fails loudly:
-        ///
-        ///  - <c>CardDisplayer3D</c> draws <c>portraitTex</c>. Cards that only ship a pixel
-        ///    portrait (Act 2) or belong to another temple come out with a blank face.
-        ///  - <c>CardDisplayer.GetCostSpriteForCard</c> indexes fixed sprite arrays, and
-        ///    the Act 1 set covers blood and bones only. An energy or gem cost either
-        ///    draws a black box or throws IndexOutOfRangeException.
-        ///
-        /// So the test is what the card needs to draw, not which list it appears on.
+        /// Temple is no longer the gate: CardRenderFallbacks clamps the cost sprite lookup
+        /// and substitutes a pixel portrait when there's no 3D one, so cards from other
+        /// acts render. What still rules a card out is having no art at all, or a cost in
+        /// a currency this table never grants.
         /// </summary>
         internal static bool CanRenderOnAct1Table(CardInfo c)
         {
             if (c == null || c.metaCategories == null) return false;
-            if (c.temple != CardTemple.Nature) return false;
 
             bool offerable = c.metaCategories.Contains(CardMetaCategory.ChoiceNode)
                              || c.metaCategories.Contains(CardMetaCategory.Rare);
             if (!offerable) return false;
 
-            // Needs 3D portrait art, not just a pixel one.
-            if (c.portraitTex == null) return false;
+            // Needs art of some kind. CardRenderFallbacks substitutes the pixel portrait
+            // when there's no 3D one, so a card only fails here if it has neither.
+            if (c.portraitTex == null && c.alternatePortrait == null && c.pixelPortrait == null)
+                return false;
 
-            // Act 1's cost sprites only cover blood and bones.
+            // Energy and gems are still out: no energy is granted on the Act 1 table, so
+            // those cards would be unplayable even though they'd now draw.
             if (c.EnergyCost > 0) return false;
             if (c.GemsCost != null && c.GemsCost.Count > 0) return false;
 

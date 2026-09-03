@@ -152,9 +152,15 @@ namespace InscryptionMP
             Lobbies.Clear();
             if (failed) { Status = "search failed"; return; }
 
+            CSteamID me = SteamUser.GetSteamID();
             for (int i = 0; i < e.m_nLobbiesMatching; i++)
             {
                 CSteamID id = SteamMatchmaking.GetLobbyByIndex(i);
+
+                // Your own lobby comes back in the search results. Joining it does
+                // nothing, so don't offer it.
+                if (SteamMatchmaking.GetLobbyOwner(id) == me) continue;
+
                 string name = SteamMatchmaking.GetLobbyData(id, LobbyHostKey);
                 if (string.IsNullOrEmpty(name)) name = id.ToString();
                 Lobbies.Add(new KeyValuePair<CSteamID, string>(id, name));

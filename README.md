@@ -6,6 +6,12 @@ Everything that existed before this was either local hotseat, a Tabletop Simulat
 table, or a browser/Godot reimplementation of the card game. This is the actual game,
 over the network, against another person.
 
+![A versus match in progress](https://raw.githubusercontent.com/snozcorp/inscryptionmp/main/docs/match.png)
+*A match between two players - the opponent's board, turn indicator, and your hand.*
+
+![Deck builder](https://raw.githubusercontent.com/snozcorp/inscryptionmp/main/docs/deck-builder.png)
+*Deck building uses the game's own card table.*
+
 ## What works
 
 - **Steam lobbies and P2P** — host, browse, join. No IPs, no port forwarding, no

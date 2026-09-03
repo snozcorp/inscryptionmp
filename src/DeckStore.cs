@@ -112,8 +112,9 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// Every Act 1 creature the game ships, regardless of campaign progression - a
-        /// versus deck shouldn't be gated behind someone's single-player unlocks.
+        /// Every card the game ships that a player could normally be offered, across all
+        /// acts, regardless of campaign progression - a versus deck shouldn't be gated
+        /// behind someone's single-player unlocks.
         /// </summary>
         public static List<CardInfo> Pool
         {
@@ -123,12 +124,20 @@ namespace InscryptionMP
 
                 try
                 {
+                    // Every act's cards, not just Act 1's. The base ResourcesManager
+                    // tracks blood, bones, energy and gems, and ResourceRules grants
+                    // energy during a match - so a Tech or Magnificus card is payable on
+                    // Leshy's table and players can bring decks from any act.
+                    //
+                    // Rare cards were previously excluded by filtering on ChoiceNode
+                    // alone, which quietly dropped Mantis God, Urayuli and friends.
                     _pool = ScriptableObjectLoader<CardInfo>.AllData
                         .Where(c => c != null
-                                    && c.temple == CardTemple.Nature
                                     && c.metaCategories != null
-                                    && c.metaCategories.Contains(CardMetaCategory.ChoiceNode))
-                        .OrderBy(c => c.BloodCost)
+                                    && (c.metaCategories.Contains(CardMetaCategory.ChoiceNode)
+                                        || c.metaCategories.Contains(CardMetaCategory.Rare)))
+                        .OrderBy(c => c.temple)
+                        .ThenBy(c => c.BloodCost + c.BonesCost + c.EnergyCost)
                         .ThenBy(c => c.DisplayedNameEnglish)
                         .ToList();
                     Trace.Info($"[deck] card pool: {_pool.Count} cards");

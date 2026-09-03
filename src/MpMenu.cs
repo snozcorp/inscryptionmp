@@ -19,6 +19,7 @@ namespace InscryptionMP
         private const float PanelH = 520f;
 
         private bool _open;
+        private bool _matchWasActive;
         private Rect _rect;
         private Vector2 _lobbyScroll;
 
@@ -40,9 +41,13 @@ namespace InscryptionMP
             VersusMode.TickPendingStart(this);
             NativeDeckBuilder.TickPendingOpen(this);
 
-            // Get out of the way once a match is starting, however it was triggered -
-            // button, hotkey, or the peer asking us to join them.
-            if (_open && (VersusMode.InMatch || VersusMode.PendingStart)) _open = false;
+            // Get out of the way when a match STARTS, however it was triggered - button,
+            // hotkey, or the peer asking us to join. Edge-triggered on purpose: closing it
+            // every frame while in a match made F7 unable to reopen the menu at all, which
+            // also hid the abort button and the disconnect countdown.
+            bool matchActive = VersusMode.InMatch || VersusMode.PendingStart;
+            if (matchActive && !_matchWasActive) _open = false;
+            _matchWasActive = matchActive;
 
             // Start requests arrive out-of-band. Draining the inbox here instead would
             // silently discard any other message that happened to be queued.

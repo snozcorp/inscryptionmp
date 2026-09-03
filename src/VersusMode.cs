@@ -235,6 +235,8 @@ namespace InscryptionMP
         private static IEnumerator StartSequence()
         {
             InMatch = true;
+            Suspended = false;
+            Net.Reconnecting = true;
             SaveManager.savingDisabled = true;   // belt and braces: no save writes during a match
 
             // The host takes the first turn; the joiner waits. Without this both clients
@@ -292,6 +294,51 @@ namespace InscryptionMP
         /// <summary>Last match result, shown in the overlay until the next match.</summary>
         public static string LastResult { get; private set; }
 
+        /// <summary>True while a match is paused waiting for a dropped peer to return.</summary>
+        public static bool Suspended { get; private set; }
+
+        /// <summary>How long we wait before calling it: a crash-and-relaunch fits inside this.</summary>
+        public const float ReconnectWindowSeconds = 120f;
+
+        private static float _suspendedAt;
+
+        public static float SuspendedSecondsLeft =>
+            Mathf.Max(0f, ReconnectWindowSeconds - (Time.realtimeSinceStartup - _suspendedAt));
+
+        /// <summary>
+        /// Called when the peer vanishes mid-match. Turn ownership is local state that only
+        /// changes on a bell or an END, neither of which can happen while disconnected - so
+        /// it survives the drop untouched and only the boards need resyncing on return.
+        /// </summary>
+        public static void NoteDisconnected()
+        {
+            if (!InMatch || Suspended) return;
+            Suspended = true;
+            _suspendedAt = Time.realtimeSinceStartup;
+            Trace.Warn("[versus] peer lost - match suspended, waiting for them to return");
+        }
+
+        public static void NoteReconnected()
+        {
+            if (!Suspended) return;
+            Suspended = false;
+            Trace.Info("[versus] peer returned - resuming match");
+
+            // Each side re-asserts its own board so both views agree again.
+            Net.Send(Protocol.Board(Sync.SnapshotPlayerSlotsPublic()));
+        }
+
+        /// <summary>Gives up on a peer that never came back.</summary>
+        public static void TickSuspension(MonoBehaviour host)
+        {
+            if (!Suspended) return;
+            if (SuspendedSecondsLeft > 0f) return;
+
+            Trace.Warn("[versus] reconnect window expired");
+            Suspended = false;
+            Finish(host, playerWon: true, reason: "opponent did not return");
+        }
+
         /// <summary>
         /// Ends the match and returns to the main menu. The campaign save was locked for
         /// the whole match, so there is nothing to roll back.
@@ -306,6 +353,8 @@ namespace InscryptionMP
             Net.Send(playerWon ? Protocol.Lost : Protocol.Won);   // their result is our inverse
 
             InMatch = false;
+            Suspended = false;
+            Net.Reconnecting = false;
             PendingStart = false;
             Match.Reset();
             RestoreCampaignRun();
@@ -333,6 +382,8 @@ namespace InscryptionMP
             }
             Trace.Warn("[versus] match aborted by player");
             InMatch = false;
+            Suspended = false;
+            Net.Reconnecting = false;
             PendingStart = false;
             Match.Reset();
             RestoreCampaignRun();

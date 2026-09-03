@@ -73,12 +73,9 @@ namespace InscryptionMP
                     yield break;
                 }
 
-                if (!Net.Connected)
-                {
-                    Trace.Warn("[opp] peer disconnected mid-turn - ending match");
-                    VersusMode.Finish(this, playerWon: true, reason: "peer disconnected");
-                    yield break;
-                }
+                // A drop no longer ends the turn: VersusMode suspends the match and the
+                // transport reconnects underneath us, so just keep waiting.
+                if (!Net.Connected) VersusMode.NoteDisconnected();
 
                 yield return new WaitForEndOfFrame();
             }

@@ -34,6 +34,9 @@ namespace InscryptionMP
             Net.Send(Protocol.Sacrifice(slot.Index));
         }
 
+        /// <summary>Exposed so a reconnect can re-assert our board.</summary>
+        internal static string[] SnapshotPlayerSlotsPublic() => SnapshotPlayerSlots();
+
         /// <summary>Card name in each of our player slots, or "-" for empty.</summary>
         private static string[] SnapshotPlayerSlots()
         {

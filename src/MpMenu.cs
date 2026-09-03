@@ -66,8 +66,11 @@ namespace InscryptionMP
                     VersusMode.Finish(this, weWon, "peer reported the result");
             }
 
-            if (VersusMode.InMatch && !Net.Connected)
-                VersusMode.Finish(this, playerWon: true, reason: "peer disconnected");
+            // A drop suspends the match rather than forfeiting it; the transports keep
+            // trying to re-establish underneath.
+            if (VersusMode.InMatch && !Net.Connected) VersusMode.NoteDisconnected();
+            if (VersusMode.InMatch && Net.Connected && VersusMode.Suspended) VersusMode.NoteReconnected();
+            VersusMode.TickSuspension(this);
         }
 
         private static int ParsedPort =>

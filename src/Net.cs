@@ -73,9 +73,17 @@ namespace InscryptionMP
                 _listener = new TcpListener(IPAddress.Any, port);
                 _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
                 _listener.Start();
-                _client = _listener.AcceptTcpClient();
-                Trace.Info("[net] peer connected.");
-                Pump();
+
+                // Keep listening after a drop so a peer can come back mid-match.
+                while (_running)
+                {
+                    _client = _listener.AcceptTcpClient();
+                    Trace.Info("[net] peer connected.");
+                    Pump();
+                    TcpConnected = false;
+                    if (!_running) break;
+                    Trace.Warn("[net] peer dropped - listening again");
+                }
             }
             catch (Exception e) { if (_running) Trace.Error($"[net] host error: {e.Message}"); }
             finally { TcpConnected = false; _running = false; }
@@ -85,10 +93,26 @@ namespace InscryptionMP
         {
             try
             {
-                _client = new TcpClient();
-                _client.Connect(host, port);
-                Trace.Info("[net] connected to host.");
-                Pump();
+                // Retry so a client can rejoin a host that is still waiting.
+                while (_running)
+                {
+                    try
+                    {
+                        _client = new TcpClient();
+                        _client.Connect(host, port);
+                        Trace.Info("[net] connected to host.");
+                        Pump();
+                        TcpConnected = false;
+                    }
+                    catch (Exception e)
+                    {
+                        if (!_running) break;
+                        Trace.Warn($"[net] connect failed ({e.Message}) - retrying");
+                    }
+
+                    if (!_running || !Reconnecting) break;
+                    Thread.Sleep(2000);
+                }
             }
             catch (Exception e) { if (_running) Trace.Error($"[net] join error: {e.Message}"); }
             finally { TcpConnected = false; _running = false; }
@@ -163,6 +187,12 @@ namespace InscryptionMP
 
             return false;
         }
+
+        /// <summary>
+        /// While true, a dropped TCP client keeps retrying instead of giving up. Set for
+        /// the duration of a match so a crash or brief network blip isn't an instant loss.
+        /// </summary>
+        public static bool Reconnecting { get; set; }
 
         /// <summary>Greets the peer. Called by whichever transport just connected.</summary>
         public static void SendHello()

@@ -263,34 +263,43 @@ namespace InscryptionMP
             var flow = Singleton<GameFlowManager>.Instance;
             var views = Singleton<ViewManager>.Instance;
 
-            // A menu launch drops us into the cabin standing up, not on the map. Sit down
-            // at the table first, otherwise the battle runs under a first-person view and
-            // standing up reveals the map again.
-            if (flow != null && flow.CurrentGameState == GameState.FirstPerson3D)
+            // Act 1's cabin needs coaxing: a menu launch drops you in standing up, and the
+            // paper map has to be rolled away. Other acts don't - the base game's own
+            // battle transition is just "switch control mode, start the game", and Act 3's
+            // holographic map throws if you try to hide it like Act 1's.
+            if (ActInfo.Current == MatchAct.Act1)
             {
-                Trace.Info("[versus] sitting down at the table");
-                flow.TransitionFromFirstPerson();
-                yield return new WaitForSeconds(1f);
+                if (flow != null && flow.CurrentGameState == GameState.FirstPerson3D)
+                {
+                    Trace.Info("[versus] sitting down at the table");
+                    flow.TransitionFromFirstPerson();
+                    yield return new WaitForSeconds(1f);
+                }
+
+                var map = Singleton<GameMap>.Instance;
+                if (map != null && flow != null && flow.CurrentGameState == GameState.Map)
+                {
+                    Trace.Info("[versus] hiding map");
+                    views.Controller.SwitchToControlMode(ViewController.ControlMode.MapNoDeckReview);
+                    yield return map.HideMapSequence();
+                    yield return new WaitForSeconds(0.25f);
+                }
+            }
+            else
+            {
+                Trace.Info($"[versus] {ActInfo.Name(ActInfo.Current)}: using the plain battle transition");
+                yield return new WaitForSeconds(0.5f);
             }
 
-            // Roll the map away if it's showing.
-            var map = Singleton<GameMap>.Instance;
-            if (map != null && flow != null && flow.CurrentGameState == GameState.Map)
-            {
-                Trace.Info("[versus] hiding map");
-                views.Controller.SwitchToControlMode(ViewController.ControlMode.MapNoDeckReview);
-                yield return map.HideMapSequence();
-                yield return new WaitForSeconds(0.25f);
-            }
-
-            TableProps.HidePlayerMarker();
+            if (ActInfo.Current == MatchAct.Act1) TableProps.HidePlayerMarker();
 
             views.Controller.SwitchToControlMode(ViewController.ControlMode.CardGameDefault);
             if (flow != null) flow.CurrentGameState = GameState.CardBattle;
 
-            // Force the camera onto the table rather than trusting whatever view the
-            // scene load left us in.
-            views.SwitchToView(View.Default, immediate: false, lockAfter: false);
+            // Forcing the camera was an Act 1 fix for a scene load leaving the wrong view.
+            // Other acts position themselves via their control mode, so don't fight it.
+            if (ActInfo.Current == MatchAct.Act1)
+                views.SwitchToView(View.Default, immediate: false, lockAfter: false);
             yield return new WaitForSeconds(0.35f);
 
             var encounter = new EncounterData

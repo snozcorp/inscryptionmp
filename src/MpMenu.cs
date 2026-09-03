@@ -16,12 +16,11 @@ namespace InscryptionMP
         internal static string PortText = Net.DefaultPort.ToString();
 
         private const float PanelW = 480f;
-        private float PanelH => _tab == 0 ? 500f : 700f;
+        private const float PanelH = 520f;
 
         private bool _open;
         private Rect _rect;
-        private Vector2 _lobbyScroll, _deckScroll, _poolScroll;
-        private int _tab;   // 0 = play, 1 = deck
+        private Vector2 _lobbyScroll;
 
         private GUIStyle _chip, _label, _dim, _header, _section, _field, _button, _small;
         private Texture2D _panelBg, _chipBg, _accent, _rule;
@@ -296,18 +295,21 @@ namespace InscryptionMP
             }
             GUILayout.Space(6f);
 
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button(_tab == 0 ? "> PLAY" : "PLAY", _button)) _tab = 0;
-            if (GUILayout.Button(_tab == 1 ? "> DECK" : "DECK", _button)) _tab = 1;
-            GUILayout.EndHorizontal();
-            Rule();
+            // Deck editing goes straight to the game's card table - an IMGUI list of card
+            // names was a poor second view of something the game already renders properly.
+            GUI.enabled = !VersusMode.InMatch;
+            if (GUILayout.Button($"EDIT DECK  ({DeckStore.Deck.Count}/{DeckStore.MaxCards})", _button))
+                OpenCardView();
+            GUI.enabled = true;
 
-            if (_tab == 1)
-            {
-                DrawDeckTab();
-                GUILayout.EndArea();
-                return;
-            }
+            if (VersusMode.InMatch)
+                GUILayout.Label("Finish the match to edit your deck.", _small);
+            else if (!DeckStore.IsValid)
+                GUILayout.Label($"Your deck needs {DeckStore.MinCards}-{DeckStore.MaxCards} cards.", _small);
+            if (NativeDeckBuilder.LastError != null)
+                GUILayout.Label(NativeDeckBuilder.LastError, _small);
+
+            Rule();
 
             bool idle = !Net.Connected && !VersusMode.InMatch;
 
@@ -396,99 +398,18 @@ namespace InscryptionMP
             GUILayout.EndArea();
         }
 
-        private void DrawDeckTab()
+        /// <summary>Loads the table if needed, then opens the game's card view.</summary>
+        private void OpenCardView()
         {
-            var deck = DeckStore.Deck;
-
-            GUILayout.Label("CARD VIEW  (the game's own table)", _section);
-            GUI.enabled = !VersusMode.InMatch;
-            if (VersusMode.InMatch)
-                GUILayout.Label("Finish the match to edit your deck.", _small);
-            if (!NativeDeckBuilder.Available)
+            _open = false;
+            if (NativeDeckBuilder.Available)
             {
-                GUILayout.Label("Loads the game's card table, then opens it.", _small);
-                if (GUILayout.Button("Open Card View", _button))
-                {
-                    _open = false;
-                    NativeDeckBuilder.PendingOpen = true;
-                    VersusMode.LoadTableOnly();
-                }
+                NativeDeckBuilder.Open(this, poolMode: true);
+                return;
             }
-            else
-            {
-                GUILayout.BeginHorizontal();
-                if (GUILayout.Button("Browse Cards", _button))
-                {
-                    _open = false;
-                    NativeDeckBuilder.Open(this, poolMode: true);
-                }
-                GUI.enabled = DeckStore.Deck.Count > 0;
-                if (GUILayout.Button("Review Deck", _button))
-                {
-                    _open = false;
-                    NativeDeckBuilder.Open(this, poolMode: false);
-                }
-                GUI.enabled = true;
-                GUILayout.EndHorizontal();
-            }
-            GUI.enabled = true;
-            if (NativeDeckBuilder.LastError != null)
-                GUILayout.Label(NativeDeckBuilder.LastError, _small);
 
-            Rule();
-
-            GUILayout.Label($"YOUR DECK   {deck.Count} / {DeckStore.MaxCards}", _section);
-            if (!DeckStore.IsValid)
-                GUILayout.Label($"Needs at least {DeckStore.MinCards} cards to play.", _small);
-
-            // Collapse duplicates so the list reads as "3x Squirrel" rather than repeating.
-            var counts = new System.Collections.Generic.List<string>();
-            foreach (string name in deck)
-                if (!counts.Contains(name)) counts.Add(name);
-
-            _deckScroll = GUILayout.BeginScrollView(_deckScroll, GUILayout.Height(130f));
-            if (counts.Count == 0)
-                GUILayout.Label("Empty - add cards below.", _small);
-            foreach (string name in counts)
-            {
-                GUILayout.BeginHorizontal();
-                GUILayout.Label($"{DeckStore.CountOf(name)}x  {name}", _label);
-                GUILayout.FlexibleSpace();
-                if (GUILayout.Button("-", _button, GUILayout.Width(34f))) { DeckStore.Remove(name); break; }
-                GUILayout.EndHorizontal();
-            }
-            GUILayout.EndScrollView();
-
-            Rule();
-
-            GUILayout.Label("CARD POOL", _section);
-            _poolScroll = GUILayout.BeginScrollView(_poolScroll, GUILayout.Height(190f));
-            foreach (var card in DeckStore.Pool)
-            {
-                string id = card.name;
-                GUILayout.BeginHorizontal();
-                string cost = card.BloodCost > 0 ? $"{card.BloodCost} blood"
-                            : card.BonesCost > 0 ? $"{card.BonesCost} bones"
-                            : "free";
-                GUILayout.Label($"{card.DisplayedNameEnglish}", _label, GUILayout.Width(160f));
-                GUILayout.Label(cost, _small, GUILayout.Width(70f));
-                GUILayout.FlexibleSpace();
-                int have = DeckStore.CountOf(id);
-                if (have > 0) GUILayout.Label($"x{have}", _dim, GUILayout.Width(28f));
-                GUI.enabled = deck.Count < DeckStore.MaxCards;
-                if (GUILayout.Button("+", _button, GUILayout.Width(34f))) { DeckStore.Add(id); break; }
-                GUI.enabled = true;
-                GUILayout.EndHorizontal();
-            }
-            GUILayout.EndScrollView();
-
-            Rule();
-
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Save Deck", _button)) DeckStore.Save();
-            if (GUILayout.Button("Reset", _button)) DeckStore.ResetToStarter();
-            GUILayout.EndHorizontal();
-            GUILayout.Label("Each player brings their own deck.", _small);
+            NativeDeckBuilder.PendingOpen = true;
+            VersusMode.LoadTableOnly();
         }
     }
 }

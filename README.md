@@ -67,10 +67,11 @@ See `NOTES.md` for the engine details and the bugs that cost real time.
 
 ## Not done
 
-- Sacrifices aren't animated on the opponent's screen; cards vanish at the bell.
-- No reconnect — a dropped connection ends the match.
 - Act 2 (`GBC.Pixel*`) is a parallel class hierarchy and is untouched.
-- Nothing stops a modified client sending a false board. Fine among friends.
+- Some rarer card effects may not replicate perfectly on the opponent's screen.
+  Please report anything that looks wrong.
+- Play with people you trust — this is built for playing with friends, not for
+  competitive or ranked play.
 
 ## Building
 

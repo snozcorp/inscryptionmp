@@ -229,8 +229,10 @@ namespace InscryptionMP
             if (!CanUseInDeck(c)) return false;
             if (c.metaCategories == null) return false;
 
-            return c.metaCategories.Contains(CardMetaCategory.ChoiceNode)
-                   || c.metaCategories.Contains(CardMetaCategory.Rare);
+            foreach (CardMetaCategory cat in ActInfo.OfferedCategories(ActInfo.Selected))
+                if (c.metaCategories.Contains(cat)) return true;
+
+            return false;
         }
     }
 }

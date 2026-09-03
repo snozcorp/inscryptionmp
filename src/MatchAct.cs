@@ -56,6 +56,24 @@ namespace InscryptionMP
         /// <summary>Whether this act's table deals in Mox gems.</summary>
         public static bool GrantsGems(MatchAct act) => act == MatchAct.Act2;
 
+        /// <summary>
+        /// The meta categories that mark a card as something this act would offer a
+        /// player. Each act uses its own: ChoiceNode is Act 1's, Act 3 uses Part3Random,
+        /// Act 2 uses the GBC ones. Testing only for ChoiceNode left other acts empty.
+        /// </summary>
+        public static CardMetaCategory[] OfferedCategories(MatchAct act)
+        {
+            switch (act)
+            {
+                case MatchAct.Act2:
+                    return new[] { CardMetaCategory.GBCPlayable, CardMetaCategory.GBCPack };
+                case MatchAct.Act3:
+                    return new[] { CardMetaCategory.Part3Random, CardMetaCategory.Rare };
+                default:
+                    return new[] { CardMetaCategory.ChoiceNode, CardMetaCategory.Rare };
+            }
+        }
+
         public static string Name(MatchAct act)
         {
             switch (act)

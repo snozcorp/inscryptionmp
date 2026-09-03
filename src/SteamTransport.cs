@@ -95,6 +95,7 @@ namespace InscryptionMP
 
         public static void HostLobby()
         {
+            Net.ShutdownTcp();   // one transport at a time
             if (!Available) { Trace.Warn("[steam] not initialised"); return; }
             EnsureCallbacks();
             Reset();
@@ -120,6 +121,7 @@ namespace InscryptionMP
 
         public static void JoinLobby(CSteamID lobby)
         {
+            Net.ShutdownTcp();   // one transport at a time
             if (!Available) return;
             EnsureCallbacks();
             Reset();

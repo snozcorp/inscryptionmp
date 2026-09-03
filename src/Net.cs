@@ -26,7 +26,7 @@ namespace InscryptionMP
 
         private static bool TcpIsHost { get; set; }
 
-        public static bool IsHost => SteamTransport.Active ? SteamTransport.IsHost : TcpIsHost;
+        public static bool IsHost => UseSteam ? SteamTransport.IsHost : TcpIsHost;
         /// <summary>TCP-specific connection state. Prefer <see cref="Connected"/>.</summary>
         public static bool TcpConnected { get; private set; }
 
@@ -34,10 +34,31 @@ namespace InscryptionMP
         public static bool Running => _running || SteamTransport.Active;
 
         /// <summary>True when either transport has a live peer.</summary>
-        public static bool Connected => SteamTransport.Active ? SteamTransport.Connected : TcpConnected;
+        public static bool Connected => SteamTransport.Connected || TcpConnected;
+
+        /// <summary>
+        /// Which transport messages should go through. Keyed on who actually has a peer:
+        /// routing on "is Steam active" meant a live TCP connection had its messages sent
+        /// to an empty Steam session and silently dropped.
+        /// </summary>
+        private static bool UseSteam => SteamTransport.Connected
+                                        || (SteamTransport.Active && !TcpConnected);
+
+        /// <summary>Tears down TCP without touching Steam. Used when switching transport.</summary>
+        internal static void ShutdownTcp()
+        {
+            _running = false;
+            TcpConnected = false;
+            try { _writer?.Dispose(); } catch { }
+            try { _client?.Close(); } catch { }
+            try { _listener?.Stop(); } catch { }
+            _writer = null; _client = null; _listener = null;
+            while (Inbox.TryDequeue(out _)) { }
+        }
 
         public static void Host(int port = DefaultPort)
         {
+            if (SteamTransport.Active) { Trace.Info("[net] leaving Steam lobby to host directly"); SteamTransport.Shutdown(); }
             if (_running)
             {
                 Trace.Info($"[net] already {(Connected ? "connected" : "hosting")} - ignoring");
@@ -53,6 +74,7 @@ namespace InscryptionMP
 
         public static void Join(string host, int port = DefaultPort)
         {
+            if (SteamTransport.Active) { Trace.Info("[net] leaving Steam lobby to join directly"); SteamTransport.Shutdown(); }
             if (_running)
             {
                 Trace.Info($"[net] already {(Connected ? "connected" : "connecting")} - ignoring");
@@ -140,7 +162,7 @@ namespace InscryptionMP
 
         public static void Send(string msg)
         {
-            if (SteamTransport.Active) { SteamTransport.Send(msg); return; }
+            if (UseSteam) { SteamTransport.Send(msg); return; }
             if (!TcpConnected || _writer == null) { Trace.Warn($"[net] dropped (not connected): {msg}"); return; }
             try { _writer.WriteLine(msg); Trace.Info($"[net] -> {msg}"); }
             catch (Exception e) { Trace.Error($"[net] send failed: {e.Message}"); }
@@ -213,7 +235,7 @@ namespace InscryptionMP
 
         public static bool TryDequeue(out string msg)
         {
-            if (SteamTransport.Active) return SteamTransport.TryDequeue(out msg);
+            if (UseSteam) return SteamTransport.TryDequeue(out msg);
             return Inbox.TryDequeue(out msg);
         }
 
@@ -221,7 +243,7 @@ namespace InscryptionMP
         {
             get
             {
-                if (SteamTransport.Active) return "steam: " + SteamTransport.Status;
+                if (UseSteam) return "steam: " + SteamTransport.Status;
                 if (TcpConnected) return TcpIsHost ? "connected (host)" : "connected (client)";
                 if (_running)     return TcpIsHost ? "hosting - waiting for peer" : "connecting...";
                 return "offline";

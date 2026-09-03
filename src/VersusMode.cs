@@ -298,6 +298,20 @@ namespace InscryptionMP
             else
             {
                 Trace.Info($"[versus] {ActInfo.Name(ActInfo.Current)}: using the plain battle transition");
+
+                // Part 3's scene init both hides its holo map and then transitions to the
+                // map state. We block that method to stop the transition, which also skips
+                // the hide - so the map stays sitting on top of the board. Do the hide
+                // ourselves. HideMapImmediate is what Part 3 itself calls; the animated
+                // HideMapSequence throws on a HoloGameMap.
+                var holoMap = Singleton<GameMap>.Instance;
+                if (holoMap != null)
+                {
+                    Trace.Info("[versus] hiding the holo map");
+                    holoMap.HideMapImmediate();
+                }
+                if (views != null) views.SwitchToView(View.Default, immediate: true);
+
                 yield return new WaitForSeconds(0.5f);
             }
 

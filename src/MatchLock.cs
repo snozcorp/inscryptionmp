@@ -22,6 +22,36 @@ namespace InscryptionMP
             return false;   // swallow it; you're playing a match
         }
 
+        /// <summary>
+        /// Part 3's scene initialisation puts the player on the holo map, or plays the P03
+        /// intro on a fresh save. Either one hijacks a match that is starting - and it
+        /// reaches the map through the protected TransitionTo, so blocking
+        /// TransitionToGameState never caught it.
+        /// </summary>
+        [HarmonyPatch(typeof(Part3GameFlowManager), "SceneSpecificInitialization")]
+        [HarmonyPrefix]
+        private static bool SkipPart3SceneIntro()
+        {
+            if (!VersusMode.InMatch && !VersusMode.PendingStart) return true;
+            Trace.Info("[lock] skipping Part 3 scene intro - a match is starting");
+            return false;
+        }
+
+        /// <summary>
+        /// Backstop for anything else inside the flow manager that tries to leave the
+        /// battle by the protected route.
+        /// </summary>
+        [HarmonyPatch(typeof(GameFlowManager), "TransitionTo")]
+        [HarmonyPrefix]
+        private static bool BlockInternalTransition(GameState gameState)
+        {
+            if (!VersusMode.InMatch && !VersusMode.PendingStart) return true;
+            if (gameState == GameState.CardBattle) return true;
+
+            Trace.Warn($"[lock] blocked internal transition to {gameState} during a match");
+            return false;
+        }
+
         [HarmonyPatch(typeof(GameFlowManager), nameof(GameFlowManager.TransitionToGameState))]
         [HarmonyPrefix]
         private static bool BlockStateChange(GameState gameState)

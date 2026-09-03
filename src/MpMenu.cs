@@ -378,6 +378,10 @@ namespace InscryptionMP
                 if (GUILayout.Button("Find Games", _button)) SteamTransport.RefreshLobbies();
                 GUILayout.EndHorizontal();
 
+                // Steam kept a running commentary in Status that nothing ever displayed,
+                // so a search that found nothing looked exactly like a dead button.
+                GUILayout.Label("Steam: " + SteamTransport.Status, _small);
+
                 if (SteamTransport.Lobbies.Count > 0)
                 {
                     GUILayout.Space(4f);

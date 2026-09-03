@@ -1,7 +1,7 @@
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text;
-using System;
 using HarmonyLib;
 using Steamworks;
 
@@ -76,6 +76,17 @@ namespace InscryptionMP
         private static Callback<LobbyChatUpdate_t> _cbChatUpdate;
         private static CallResult<LobbyMatchList_t> _crList;
 
+        /// <summary>True between requesting a lobby list and the result arriving.</summary>
+        public static bool Searching { get; private set; }
+
+        /// <summary>
+        /// When the pending search started. Steam should always answer, but if it ever
+        /// doesn't, a stuck flag would disable Find Games for the rest of the session -
+        /// so a stale search is allowed to be replaced.
+        /// </summary>
+        private static int _searchStartedAt;
+        private const int SearchTimeoutMs = 10000;
+
         private static readonly ConcurrentQueue<string> Inbox = new ConcurrentQueue<string>();
         private static readonly StringBuilder RecvBuffer = new StringBuilder();
 
@@ -108,9 +119,21 @@ namespace InscryptionMP
 
         public static void RefreshLobbies()
         {
-            if (!Available) { Trace.Warn("[steam] not initialised"); return; }
+            if (!Available) { Status = "Steam not initialised"; Trace.Warn("[steam] not initialised"); return; }
             EnsureCallbacks();
+
+            // One CallResult at a time: setting a new handle abandons the pending one, so
+            // repeated presses used to cancel the search each time and look like nothing
+            // was happening at all.
+            if (Searching && Environment.TickCount - _searchStartedAt < SearchTimeoutMs)
+            {
+                Trace.Info("[steam] already searching");
+                return;
+            }
+
             Lobbies.Clear();
+            Searching = true;
+            _searchStartedAt = Environment.TickCount;
             Status = "searching...";
             Trace.Info("[steam] requesting lobby list");
             SteamMatchmaking.AddRequestLobbyListStringFilter(
@@ -151,8 +174,9 @@ namespace InscryptionMP
 
         private static void OnLobbyList(LobbyMatchList_t e, bool failed)
         {
+            Searching = false;
             Lobbies.Clear();
-            if (failed) { Status = "search failed"; return; }
+            if (failed) { Status = "search failed - try again"; return; }
 
             CSteamID me = SteamUser.GetSteamID();
             for (int i = 0; i < e.m_nLobbiesMatching; i++)
@@ -167,7 +191,11 @@ namespace InscryptionMP
                 if (string.IsNullOrEmpty(name)) name = id.ToString();
                 Lobbies.Add(new KeyValuePair<CSteamID, string>(id, name));
             }
-            Status = Lobbies.Count == 0 ? "no lobbies found" : Lobbies.Count + " lobbies";
+            // Say plainly that a search happened and came back empty. Drawing nothing at
+            // all is indistinguishable from the button not working.
+            Status = Lobbies.Count == 0
+                ? "no games found - someone has to Host Lobby first"
+                : Lobbies.Count + (Lobbies.Count == 1 ? " game found" : " games found");
             Trace.Info("[steam] found " + Lobbies.Count + " lobbies");
         }
 
@@ -325,6 +353,7 @@ namespace InscryptionMP
 
         public static void Reset()
         {
+            Searching = false;
             string ignored;
             while (Inbox.TryDequeue(out ignored)) { }
             RecvBuffer.Length = 0;

@@ -68,12 +68,7 @@ namespace InscryptionMP
 
             if (Net.HandshakeError != null)
             {
-                Trace.Warn("[versus] refusing to start: " + Net.HandshakeError);
-                return;
-            }
-
-            if (Net.HandshakeError != null)
-            {
+                Notice.Bad("Can't start: " + Net.HandshakeError);
                 Trace.Warn("[versus] refusing to start: " + Net.HandshakeError);
                 return;
             }
@@ -286,12 +281,25 @@ namespace InscryptionMP
             Notice.ClearIfBusy();
             Trace.Info("[versus] scene ready - starting match");
             Start(host);
+
+            // Don't leave someone parked at an empty table if the match couldn't begin
+            // after all - the peer may have dropped while the scene was loading.
+            if (!InMatch)
+            {
+                Trace.Warn("[versus] match did not start after loading - returning to the menu");
+                Notice.Bad("Couldn't start the match.");
+                RestoreCampaignRun();
+                TableProps.RestorePlayerMarker();
+                MenuController.ReturnToStartScreen();
+            }
         }
 
         public static bool CanStart()
         {
             if (!Net.Connected) { Notice.Bad("No opponent connected yet."); return false; }
             if (InMatch)        { Notice.Say("You're already in a match."); return false; }
+
+
             if (Singleton<TurnManager>.Instance == null)
             {
                 Trace.Warn("[versus] no TurnManager - must be in the Act 1 scene");
@@ -557,6 +565,13 @@ namespace InscryptionMP
                 return;
             }
             Trace.Warn("[versus] match aborted by player");
+
+            // Tell them before we go. The socket stays open when we leave, so nothing ever
+            // reports us as disconnected - without this the peer waits for a turn that is
+            // never coming, and not even the reconnect window rescues them because nothing
+            // dropped. Walking out is conceding.
+            if (InMatch) Net.Send(Protocol.Won);   // they won; we left
+
             InMatch = false;
             Suspended = false;
             Net.Reconnecting = false;

@@ -52,6 +52,11 @@ def reader(sock, writer, auto):
             print(f"*** MATCH OVER - peer reports: {line} ***", flush=True)
             continue
 
+        # Greet back, so the client can verify us like a real peer would.
+        if line.startswith("HELLO"):
+            send(writer, "HELLO 3 1.2.0", "  (auto)")
+            continue
+
         if auto and line == "END":
             time.sleep(1.0)
             card = AUTO_CARDS[turn % len(AUTO_CARDS)]

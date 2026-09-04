@@ -31,6 +31,12 @@ namespace InscryptionMP
         public static void PassedToPeer()
         {
             IsMyTurn = false;
+
+            // Anything still queued here belongs to a peer turn that has already been and
+            // gone without being used - a Sniper card that died before it could attack.
+            // Their next turn's aims arrive after this point, so nothing live is lost.
+            Net.ClearAims();
+
             Trace.Info("[turn] passed to peer");
         }
 

@@ -39,7 +39,7 @@ namespace InscryptionMP
         private GUIStyle _chip, _label, _dim, _header, _section, _field, _button, _small;
         private GUIStyle _primary, _quiet, _warn, _resultText, _good, _busy, _close;
         private GUIStyle _chipState, _chipInfo;
-        private Texture2D _panelBg, _chipBg, _accent, _rule;
+        private Texture2D _panelBg, _chipBg, _accent;
 
         private void Update()
         {
@@ -206,7 +206,6 @@ namespace InscryptionMP
             _panelBg = Solid(Ink);
             _chipBg  = Solid(new Color(Ink.r, Ink.g, Ink.b, 0.93f));
             _accent  = Solid(Gold);
-            _rule    = Solid(GoldSoft);
 
             _label = new GUIStyle(GUI.skin.label) { fontSize = 17, normal = { textColor = Bone } };
             _dim   = new GUIStyle(_label) { fontSize = 16, normal = { textColor = BoneDim } };
@@ -306,7 +305,14 @@ namespace InscryptionMP
             // The 3D card view needs the screen to itself.
             if (NativeDeckBuilder.IsOpen)
             {
+                // Scaled like the rest of the UI. Returning early skipped the matrix, so
+                // this bar stayed at 1x - and it's the one being read continuously while
+                // browsing cards.
+                Matrix4x4 barRestore = GUI.matrix;
+                GUI.matrix = Matrix4x4.Scale(new Vector3(UiScale, UiScale, 1f));
                 DrawCardViewHint();
+                GUI.matrix = barRestore;
+
                 DrawCursor();
                 return;
             }
@@ -526,7 +532,7 @@ namespace InscryptionMP
                             $"     page {NativeDeckBuilder.Page + 1}/{NativeDeckBuilder.PageCount}";
 
             const float w = 700f, h = 84f;
-            var bar = new Rect((Screen.width - w) * 0.5f, 12f, w, h);
+            var bar = new Rect((Screen.width / UiScale - w) * 0.5f, 12f, w, h);
 
             GUI.DrawTexture(bar, _accent);
             GUI.DrawTexture(new Rect(bar.x + 2f, bar.y + 2f, bar.width - 4f, bar.height - 4f), _panelBg);

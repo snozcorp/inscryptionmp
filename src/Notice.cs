@@ -25,18 +25,26 @@ namespace InscryptionMP
     /// So anything the player triggers says what it is doing, and anything that fails says
     /// why, in words rather than silence.
     ///
-    /// Deliberately uses DateTime rather than UnityEngine.Time: notices are set from the
-    /// network threads, and Unity's time API is main-thread only.
+    /// Timing deliberately avoids UnityEngine.Time: notices are raised from the network
+    /// threads, and Unity's time API is main-thread only.
     /// </summary>
     public static class Notice
     {
-        private const double FadeSeconds = 7.0;
-        private const double FadeSecondsBad = 20.0;
+        private const int FadeMs = 7000;
+        private const int FadeMsBad = 20000;
 
         public static string Text { get; private set; }
         public static NoticeKind Kind { get; private set; }
 
-        private static DateTime _setAt = DateTime.MinValue;
+        /// <summary>
+        /// When the notice was set, as a tick count rather than a DateTime.
+        ///
+        /// Notices are raised from the network threads and read on the Unity main thread.
+        /// This build is 32-bit, where a 64-bit DateTime is not written atomically, so a
+        /// reader could see half of one value and half of another - a notice that never
+        /// expires or vanishes at once. An int is written atomically.
+        /// </summary>
+        private static volatile int _setAt;
 
         public static void Say(string text)  => Set(text, NoticeKind.Info);
         public static void Busy(string text) => Set(text, NoticeKind.Busy);
@@ -65,7 +73,7 @@ namespace InscryptionMP
         {
             Text = text;
             Kind = kind;
-            _setAt = DateTime.UtcNow;
+            _setAt = Environment.TickCount;
         }
 
         /// <summary>
@@ -79,8 +87,10 @@ namespace InscryptionMP
                 if (string.IsNullOrEmpty(Text)) return false;
                 if (Kind == NoticeKind.Busy) return true;
 
-                double life = Kind == NoticeKind.Bad ? FadeSecondsBad : FadeSeconds;
-                return (DateTime.UtcNow - _setAt).TotalSeconds < life;
+                int life = Kind == NoticeKind.Bad ? FadeMsBad : FadeMs;
+
+                // Unchecked subtraction so this still behaves when TickCount wraps.
+                return unchecked(Environment.TickCount - _setAt) < life;
             }
         }
     }

@@ -134,9 +134,14 @@ namespace InscryptionMP
                     {
                         if (!_running) break;
 
-                        // The reason used to live only in the log, so the panel simply went
-                        // back to "offline" and the player had nothing to act on.
-                        Notice.Bad($"Couldn't reach {host}:{port} - {e.Message}");
+                        // Only worth saying when the player is waiting on a connection.
+                        // Mid-match this loop retries every couple of seconds while the
+                        // match is held open, and a 20-second error notice per attempt
+                        // buried the "opponent left, rejoining keeps the match" state
+                        // under a permanent failure message.
+                        if (!Reconnecting)
+                            Notice.Bad($"Couldn't reach {host}:{port} - {e.Message}");
+
                         Trace.Warn($"[net] connect failed ({e.Message}) - retrying");
                     }
 
@@ -216,7 +221,21 @@ namespace InscryptionMP
             return Aims.TryRemove(attackerSlot, out targets);
         }
 
-        public static void ClearAims() => Aims.Clear();
+        /// <summary>
+        /// Drops aims nobody consumed.
+        ///
+        /// An aim is keyed by the slot its card sits in, and is only removed when that card
+        /// actually attacks. A Sniper card that dies before combat - sacrificed, or killed
+        /// by a trigger - leaves its aim behind, and the next card to occupy that slot
+        /// picks it up and fires at a target its owner never chose. Clearing per turn keeps
+        /// an aim usable only within the turn it was sent for.
+        /// </summary>
+        public static void ClearAims()
+        {
+            int stale = Aims.Count;
+            Aims.Clear();
+            if (stale > 0) Trace.Info($"[sniper] discarded {stale} unused aim(s)");
+        }
 
         /// <summary>Returns true if the message was handled out-of-band.</summary>
         public static bool CaptureResult(string line)

@@ -1,5 +1,13 @@
 # Inscryption Online PvP — working notes
 
+**How to read this.** It is a working log kept while building the mod, in the order things
+were learned. The sections near the top are kept current; everything below "First working
+round trip" is history, including a few claims that later entries correct. Where that
+happens the correction says so.
+
+If you are here to mod Inscryption yourself, **Key engine findings** is the part worth your
+time.
+
 ## Target
 Networked online PvP **inside the real game client**. Everything that exists today is
 either local hotseat, Tabletop Simulator, or a browser/Godot reimplementation.
@@ -27,6 +35,51 @@ either local hotseat, Tabletop Simulator, or a browser/Godot reimplementation.
 - `CardSlot.Index` and `CardSlot.IsPlayerSlot` give us stable slot addressing.
 - `CardLoader.GetCardByName(string)` — card name is a sufficient wire identifier.
 
+## Key engine findings, part two (acts 2 and 3, UI)
+Learned bringing up the other acts. All verified against Assembly-CSharp, not guessed.
+
+- **`GBC_CardBattle` has no `GameFlowManager`.** Act 1 and Act 3 are explorable scenes with
+  one driving their game states; Act 2's battle scene is self-contained and its flow lives
+  in the overworld it is normally entered from. Anything waiting on that singleton waits
+  forever there — including `TurnManager.CleanupPhase`, which only calls
+  `TransitionToNextGameState` when it exists, so a match never *ends* either.
+- **Each act draws from its own deck.** They share an abstract `CardDrawPiles.DeckData`,
+  but Act 1 and Act 3 go through `CardDrawPiles3D` while `GBC.PixelCardDrawPiles` reads
+  `GBC.SaveData.Data.deck` — which `Initialize()` leaves empty. `Deck.GetFairHand` then
+  indexes an empty list with no bounds check.
+- **`AbilitiesUtil.GetInfo` is a list search**, not a switch:
+  `ScriptableObjectLoader<AbilityInfo>.AllData.Find(x => x.ability == ability)`. An
+  `AbilityInfo` injected into that list resolves everywhere, so custom sigils need no
+  transpiling.
+- **`CombatPhaseManager.SlotAttackSequence` never checks whose card it is.** It prompts the
+  local player to aim any card with `Ability.Sniper`. Safe in single player, where only the
+  player holds one; over a network it asks you to aim your opponent's card, at the wrong
+  side of the board. `GetOpposingSlots` gets the same distinction right, so it is that
+  branch specifically.
+- **`GBC.PixelCardAbilityIcons` keeps one icon layout per sigil count** and picks it by
+  index: `abilities.Count - 1 < abilityIconGroups.Count`. A card with more sigils than
+  there are layouts matches nothing and draws **no** sigils rather than a truncated set.
+- **`CardInfo.Clone()` gives the copy a fresh `Mods` list.** `CardLoader.GetCardByName`
+  hands out one shared instance per card, so anything that adds abilities must clone first
+  or it changes that card everywhere, campaign included.
+- **`MenuCard` / `MenuSlot`**: the title screen is literally cards dropped into a slot,
+  dispatched through a `MenuAction` switch in `OnCardReachedSlot`. `DisplayMenuCardTitle`
+  falls back to rendering `TitleText` when a card has no `titleSprite`, so a new menu card
+  needs no word art. Each card has its own face sprite (`menucard_options` and friends),
+  and skipping `OnCardReachedSlot` outright leaves `DoingCardTransition` set, which freezes
+  the whole menu.
+
+### Two that cost real time
+- **Patching an overloaded method by name throws `AmbiguousMatchException` — during
+  `PatchAll`.** That aborts the entire pass, so *every* patch in the mod silently fails to
+  apply and the plugin looks dead with no crash. Always pass the parameter types.
+- **Unity ignores `GUIStyle.fontSize` for a non-dynamic font, but still measures layout
+  with it.** Inscryption's `Marksman (Crisp)` is a bitmap font baked at 16. Styles asking
+  for 12 reserved a 12pt box that then had 16pt glyphs drawn into it, and the overflow was
+  clipped — text that would not fit its box no matter how wide the box got. Set `fontSize`
+  to 0 so measurement and drawing agree, and scale the whole UI through `GUI.matrix` if you
+  need it bigger.
+
 ## Architecture
 Each client runs an **ordinary single-player battle**. You are always "the player" on your
 own screen; your peer is always "the opponent". A card the peer plays into THEIR player
@@ -42,36 +95,53 @@ Transport is plain TCP, newline-delimited text. It's turn-based: ordering matter
 latency does not. The protocol is human-readable so the log is the debugger.
 
 ## Wire protocol
+Protocol 3. Newline-delimited text, human-readable so the log is the debugger.
+
 ```
+HELLO <proto> <modVersion>    greeting; both sides send it on connect
+START <act>                   begin a match on act 1, 2 or 3
 PLAY <cardName> <slotIndex>   peer played a card into their player slot N
-END                            peer ended their turn
+SAC <slotIndex>               peer sacrificed the card in that slot
+BOARD <slot>|<slot>|...       authoritative snapshot of the sender's player slots
+AIM <slot> <t1,t2,...>        where the sender aimed a Sniper card
+END                           peer ended their turn
+OVER WON | OVER LOST          the sender is reporting their own result
 ```
+
+A `BOARD` slot is `-` for empty, otherwise `Name:attack/health` with `:sigil,sigil`
+appended when the card has gained any. Names alone were not enough: both clients simulate
+combat independently and usually agree, but nothing corrected them when they didn't, so a
+buffed or damaged card kept different numbers on each screen for the rest of the match.
+
+**Older peers are not shut out.** The handshake carries the protocol version, so a client
+that speaks 3 writes protocol 2 messages to a peer that speaks 2 and goes without the
+extras. Only protocol 1 is refused, and for a real reason: it predates `START <act>`, so
+one side would load Act 1's cabin while the other loaded Act 3's board.
 
 ## Status
-- [x] Environment recon
-- [x] Decompile + map battle state machine
-- [x] Plugin scaffold builds clean against game assemblies
-- [x] `Net` TCP transport (background thread, ConcurrentQueue drain)
+- [x] Environment recon, decompile, battle state machine mapped
+- [x] `Net` TCP transport + Steam lobbies and P2P
 - [x] `NetworkOpponent : Opponent` — network-driven `QueueNewCards`
-- [x] `Sync` — capture local plays + turn end
-- [x] `OpponentInjector` — swap in NetworkOpponent when a session is live
-- [x] BepInEx 5.4.23.2 (x86) installed into game dir
-- [x] **Plugin loads in the real game; all Harmony patches resolve** (Unity 2019.4.24f1)
-- [x] **One card crossing the wire, both directions** (2026-09-02)
-- [x] **Standalone versus mode, launchable from the main menu** (F8)
-- [x] Save protected + player pinned to the table for the duration
+- [x] Standalone versus mode, launched from the main menu, campaign save untouched
 - [x] Two real game clients, two machines, two Steam accounts
-- [x] **Full match played to a win, clean return to the main menu**
-- [ ] Proper in-game menu (host / join / IP entry) instead of F-keys
-- [ ] Dedicated PvP deck / deck builder
+- [x] Full match played to a win, clean return to the main menu
+- [x] Deck builder on the game's own card table, one deck per act
+- [x] Version handshake, with older peers negotiated down rather than refused
+- [x] **All three acts** — Act 1's cabin, Act 2's GBC board, Act 3's P03 table
+- [x] Card stats and gained sigils synced, not just which card is where
+- [x] Sniper aimed by the client that owns the card
+- [x] Player-chosen sigils on deck cards
+- [x] A multiplayer card on the title screen
 
 ## Known gaps / next
-- No handshake or version check yet (`Protocol.Hello` defined, unused).
-- Sacrifices/blood cost are resolved locally only — peer sees the resulting card, not the
-  cost payment. Fine for v1.
-- Deck sync: both sides currently use whatever encounter they launched. Needs a real
-  "agree on decks" step before this is a fair PvP game.
-- Act 2 (`GBC.Pixel*` classes) is a parallel hierarchy — same approach, different types.
+- **Acts 2 and 3 have only been played against the scripted peer**, not two real clients.
+  Act 1 is the one verified across two machines.
+- **A modified client is trusted.** Each client is authoritative over its own board, which
+  is inherent to a peer-to-peer design without a referee. Play with people you trust.
+- Sigils a card gains beyond what the act can lay out are clamped for display; Act 2 keeps
+  one icon layout per sigil count and draws none at all past the end of that list.
+- No spectating, no reconnect beyond the two-minute window, no matchmaking beyond Steam's
+  public lobby list.
 
 ## Testing without a second copy of the game
 Steam won't happily run two instances, so `tools/peer.py` speaks our protocol directly:
@@ -86,17 +156,17 @@ Steam won't happily run two instances, so `tools/peer.py` speaks our protocol di
 Verified-valid card names: Wolf, Adder, Bullfrog, Squirrel, Stoat, Grizzly.
 
 ## Gotcha found the hard way
-BepInEx's log confirms patch resolution but NOT patch correctness � "Harmony patches
+BepInEx's log confirms patch resolution but NOT patch correctness — "Harmony patches
 applied" only means the target methods exist with the expected signatures.
 
 ## Gotcha: no in-game feedback
-First F9 test "did nothing" from the player's side � but the log showed hosting had
+First F9 test "did nothing" from the player's side — but the log showed hosting had
 started fine, twice. There was simply no on-screen indication, so the key got pressed
 again, and the second `Host()` called `Shutdown()` on the live listener.
 
 Two fixes:
 - `Hotkeys.OnGUI` draws a persistent status overlay (top-left). Green when connected.
-- `Net.Host()`/`Net.Join()` are now idempotent � a second press is a no-op, not a teardown.
+- `Net.Host()`/`Net.Join()` are now idempotent — a second press is a no-op, not a teardown.
 
 Lesson: for a mod with no UI, build the status readout before the first live test.
 Verified working via `netstat`: the game process holds `0.0.0.0:27333 LISTENING`.
@@ -106,11 +176,11 @@ Verified working via `netstat`: the game process holds `0.0.0.0:27333 LISTENING`
    `LogOutput.log` from outside the game. `Trace.cs` mirrors everything to
    `BepInEx/mp-trace.log` with an explicit flush per line. Tag lines with the PID.
 2. **Launching `Inscryption.exe` directly makes Steam spawn a second process.** The two
-   race for port 27333 and the loser logs `Address already in use` � then Steam kills
+   race for port 27333 and the loser logs `Address already in use` — then Steam kills
    the winner, leaving a live game that is not hosting. Launch with
    `cmd /c start "" "steam://rungameid/1092790"` instead.
 3. A failed `Host()`/`Join()` left `_running = true`, so the idempotency guard blocked
-   any retry � the mod was wedged until restart. Failures now reset `_running`.
+   any retry — the mod was wedged until restart. Failures now reset `_running`.
    Listener also sets `SO_REUSEADDR` for prompt rebinding.
 
 ## Verified working end to end
@@ -177,9 +247,9 @@ state prevents standing up - and standing up mid-match re-reveals the map and de
 ```
 
 ## Known unfairness
-Peer cards are placed with `BoardManager.CreateCardInSlot`, which bypasses cost entirely -
-the remote player pays no blood or bones. Fixing this properly means syncing sacrifices,
-not just the resulting card.
+**This entry is wrong and is kept for the record — see "Correction: peer cards are not
+'free'" below.** It read: peer cards are placed with `BoardManager.CreateCardInSlot`, which
+bypasses cost entirely, so the remote player pays no blood or bones.
 
 ## Full match verified (2026-09-02)
 ```

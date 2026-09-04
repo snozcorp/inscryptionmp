@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
     <AssemblyName>InscryptionMP</AssemblyName>
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
     <LangVersion>latest</LangVersion>
     <NoWarn>$(NoWarn);CS0626;MSB3277</NoWarn>
     <GameDir>C:\Steam\steamapps\common\Inscryption</GameDir>

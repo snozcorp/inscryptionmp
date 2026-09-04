@@ -24,9 +24,15 @@ over the network, against another person.
   your save.
 - **Real turn order** with a turn indicator; cards appear on the opponent's board as
   they are played.
-- **Authoritative board sync** each turn, so sacrifices and combat deaths stay correct.
+- **Authoritative board sync** each turn, carrying each card's attack, health and any
+  sigils it has picked up — so a buffed or damaged card reads the same on both screens.
 - **Deck builder** using the game's own 3D card table, paged, persisted to disk — one
   deck per act, each restricted to cards that act can actually draw and pay for.
+- **Sigils on your own cards.** Put up to two extra sigils on any card in your deck. The
+  picker shows that card wearing each sigil, so you choose by looking at cards rather than
+  reading a list, and only sigils the act can actually draw are offered.
+- **A multiplayer card on the title screen** — drag it into the slot to open the menu,
+  alongside New Game and the rest.
 - **Clean match end** on both clients, back to the main menu with the result.
 
 ## Install
@@ -41,9 +47,19 @@ over the network, against another person.
    ```
 3. Launch the game and press **F7**.
 
-Both players need the same build. **1.1.0 cannot play against 1.0.x** — the act is now
-negotiated when a match starts, so the protocol changed. Mismatched versions are refused
-at the handshake with a message naming both, rather than failing halfway into a match.
+**Version compatibility.** The handshake carries a protocol version, and a newer client
+speaks an older one's dialect rather than refusing it:
+
+| Your build | Plays against |
+|---|---|
+| 1.3.x | 1.3.x, and 1.1.x–1.2.x without the newer extras |
+| 1.1.x–1.2.x | each other, and 1.3.x |
+| 1.0.x | nothing newer |
+
+Against a pre-1.3 peer you lose stat corrections, synced sigils and Sniper aiming — the
+match works, there is just information their client never sends. 1.0.x is refused outright
+because it predates act negotiation, so the two clients would load different scenes.
+Mismatches are reported at the handshake, not halfway into a match.
 
 ## Playing
 
@@ -57,9 +73,15 @@ at the handshake with a message naming both, rather than failing halfway into a 
 
 ## Deck building
 
-**F7 → EDIT DECK.** Click a card to add it; **View My Deck** to remove. Decks are 6–20
+**F7 → EDIT DECK.** Browse all cards and click to add. In **View My Deck**, clicking a
+card selects it — the bar then offers **Add Sigils** or **Delete Card**. Decks are 6–20
 cards, stored per act in `BepInEx/config/inscryptionmp-deck-act1.txt` (and `-act2`,
-`-act3`).
+`-act3`), one card per line as `CardName` or `CardName:Sigil,Sigil`.
+
+**Sigils.** Up to two per card, chosen from what the game itself considers graftable —
+Act 1 and 2 offer Leshy's totem set, Act 3 offers P03's. Two is the engine's limit rather
+than a balance decision: Act 2 keeps one icon layout per sigil count and a card carrying
+more than the layouts cover draws none at all.
 
 Each act offers the cards that belong to it: Leshy's creatures in Act 1, all four
 scrybes in Act 2's GBC game, P03's machines in Act 3. Cards an act can't pay for are
@@ -91,13 +113,20 @@ from an overworld we never load. Each act also has its own draw pile reading its
 store. Those differences live in `MatchAct.cs` rather than being special-cased at each
 call site.
 
-See `NOTES.md` for the engine details and the bugs that cost real time.
+What differs between acts is everything *around* the battle, and that is where the work
+went: Act 2's scene has no `GameFlowManager` at all, each act draws from its own deck
+store, and each renders cards through a different displayer. Those differences live in
+`MatchAct.cs` rather than being special-cased at every call site.
+
+See `NOTES.md` for the engine details and the bugs that cost real time — including the
+ones worth knowing before you write an Inscryption mod of your own.
 
 ## Not done
 
-- Acts 2 and 3 are newer than Act 1 and have had less play. They run start to finish -
-  the scene, deck, art, sigils, rulebook and match end - but Act 1 remains the most
-  exercised of the three.
+- Acts 2 and 3 have been played end to end, but against a scripted test client rather
+  than two real ones. Act 1 is the one verified across two machines and two Steam accounts.
+- Each client is authoritative over its own board, which is inherent to peer-to-peer with
+  no referee. Play with people you trust.
 - Some rarer card effects may not replicate perfectly on the opponent's screen.
   Please report anything that looks wrong.
 - Play with people you trust — this is built for playing with friends, not for

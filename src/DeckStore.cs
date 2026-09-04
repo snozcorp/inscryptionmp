@@ -18,6 +18,52 @@ namespace InscryptionMP
         public const int MinCards = 6;
         public const int MaxCards = 20;
 
+        /// <summary>
+        /// Sigils a player may add to one card.
+        ///
+        /// Two because that is what the game can draw. Act 2 keeps one prebuilt icon
+        /// layout per sigil count, and a card carrying more than the layouts cover renders
+        /// none at all - so the cap is the engine's, not a balance decision.
+        /// </summary>
+        public const int MaxAddedSigils = 2;
+
+        private static readonly string[] NoSigils = new string[0];
+
+        /// <summary>
+        /// A deck line is "CardName", or "CardName:Sigil,Sigil" once sigils are added.
+        /// Plain names still load, so decks written before this stay valid.
+        /// </summary>
+        internal static string BaseName(string entry)
+        {
+            if (string.IsNullOrEmpty(entry)) return entry;
+            int colon = entry.IndexOf(':');
+            return colon < 0 ? entry : entry.Substring(0, colon);
+        }
+
+        internal static string[] SigilsOf(string entry)
+        {
+            if (string.IsNullOrEmpty(entry)) return NoSigils;
+            int colon = entry.IndexOf(':');
+            if (colon < 0 || colon == entry.Length - 1) return NoSigils;
+            return entry.Substring(colon + 1).Split(',');
+        }
+
+        internal static string MakeEntry(string name, IList<string> sigils)
+        {
+            if (sigils == null || sigils.Count == 0) return name;
+            return name + ":" + string.Join(",", sigils.ToArray());
+        }
+
+        /// <summary>Replaces the sigils on one deck entry, keeping its card.</summary>
+        public static void SetSigils(int index, IList<string> sigils)
+        {
+            if (index < 0 || index >= Deck.Count) return;
+
+            Deck[index] = MakeEntry(BaseName(Deck[index]), sigils);
+            Match.Reset();   // the built deck is stale now
+            Save();
+        }
+
         /// <summary>Act 1's starter deck, matching what the campaign hands a new player.</summary>
         private static readonly string[] Act1Starter =
         {
@@ -141,7 +187,7 @@ namespace InscryptionMP
 
             foreach (string name in _deck)
             {
-                CardInfo info = CardLoader.GetCardByName(name);
+                CardInfo info = CardLoader.GetCardByName(BaseName(name));
                 if (info != null && CanUseInDeck(info)) kept.Add(name);
                 else dropped.Add(name);
             }
@@ -176,6 +222,18 @@ namespace InscryptionMP
             Match.Reset();
         }
 
+        /// <summary>
+        /// Removes one entry by position. Removing by name can't tell two copies of a card
+        /// apart once they carry different sigils.
+        /// </summary>
+        public static void RemoveAt(int index)
+        {
+            if (index < 0 || index >= Deck.Count) return;
+            Deck.RemoveAt(index);
+            Match.Reset();
+            Save();
+        }
+
         public static void Remove(string cardName)
         {
             Deck.Remove(cardName);
@@ -184,7 +242,7 @@ namespace InscryptionMP
 
         public static int CountOf(string cardName)
         {
-            return Deck.Count(c => c == cardName);
+            return Deck.Count(c => BaseName(c) == cardName);
         }
 
         public static void ResetToStarter()

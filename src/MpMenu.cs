@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using DiskCardGame;
 using Steamworks;
 using UnityEngine;
@@ -28,16 +29,21 @@ namespace InscryptionMP
         /// </summary>
         private float _measuredH = 300f;
 
+        /// <summary>Height of the card-view control bar, measured the same way.</summary>
+        private float _barH = 110f;
+
         private bool _open;
         private bool _matchWasActive;
 
         /// <summary>Direct/LAN is a fallback, so it stays folded away until asked for.</summary>
         private bool _showDirect;
+
+
         private Rect _rect;
         private Vector2 _lobbyScroll;
 
         private GUIStyle _chip, _label, _dim, _header, _section, _field, _button, _small;
-        private GUIStyle _primary, _quiet, _warn, _resultText, _good, _busy, _close;
+        private GUIStyle _primary, _quiet, _warn, _resultText, _good, _busy, _close, _pageLabel;
         private GUIStyle _chipState, _chipInfo;
         private Texture2D _panelBg, _chipBg, _accent;
 
@@ -187,7 +193,19 @@ namespace InscryptionMP
             return _gameFont;
         }
 
-        /// <summary>Points every style we built at the game's face.</summary>
+        /// <summary>
+        /// Points every style at the game's face, and stops asking for sizes it can't give.
+        ///
+        /// Marksman is a bitmap font: Unity draws its glyphs at the size they were baked
+        /// at and ignores GUIStyle.fontSize - but layout still *measures* with fontSize.
+        /// A style asking for 12pt therefore reserved a 12pt box that then had 16pt glyphs
+        /// drawn into it, and the overflow was clipped. That is why the page counter showed
+        /// "page" with the numbers cut off, and why boxes kept not fitting their text.
+        ///
+        /// Setting fontSize to 0 means "use the font's own size", so measurement and
+        /// drawing finally agree. Everything ends up one size; the size hierarchy has to
+        /// come from colour and spacing instead, which the palette already does.
+        /// </summary>
         private void ApplyFont()
         {
             Font f = GameFont();
@@ -195,8 +213,13 @@ namespace InscryptionMP
 
             foreach (GUIStyle st in new[] { _chip, _label, _dim, _small, _header, _section,
                                             _field, _button, _primary, _quiet, _warn, _good,
-                                            _busy, _close, _resultText, _chipState, _chipInfo })
-                if (st != null) st.font = f;
+                                            _busy, _close, _resultText, _chipState, _chipInfo,
+                                            _pageLabel })
+            {
+                if (st == null) continue;
+                st.font = f;
+                if (!f.dynamic) st.fontSize = 0;
+            }
         }
 
         private void EnsureStyles()
@@ -272,6 +295,15 @@ namespace InscryptionMP
                 fontStyle = FontStyle.Bold,
                 normal = { textColor = Rust,        background = Solid(new Color(0.13f, 0.07f, 0.06f, 1f)) },
                 hover  = { textColor = Color.white, background = Solid(new Color(0.45f, 0.16f, 0.12f, 1f)) },
+            };
+
+            _pageLabel = new GUIStyle(_label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontStyle = FontStyle.Bold,
+                padding = new RectOffset(0, 0, 0, 0),
+                margin = new RectOffset(0, 0, 0, 0),
+                normal = { textColor = Bone },
             };
 
             _warn = new GUIStyle(_small) { normal = { textColor = Rust } };
@@ -527,34 +559,103 @@ namespace InscryptionMP
         private void DrawCardViewHint()
         {
             bool pool = NativeDeckBuilder.PoolMode;
-            string mode = pool ? "CLICK A CARD TO ADD IT" : "CLICK A CARD TO REMOVE IT";
-            string counts = $"deck {DeckStore.Deck.Count}/{DeckStore.MaxCards}" +
-                            $"     page {NativeDeckBuilder.Page + 1}/{NativeDeckBuilder.PageCount}";
+            bool sigils = NativeDeckBuilder.SigilMode;
 
-            const float w = 700f, h = 84f;
-            var bar = new Rect((Screen.width / UiScale - w) * 0.5f, 12f, w, h);
+            bool selected = NativeDeckBuilder.HasSelection;
 
-            GUI.DrawTexture(bar, _accent);
-            GUI.DrawTexture(new Rect(bar.x + 2f, bar.y + 2f, bar.width - 4f, bar.height - 4f), _panelBg);
+            string mode = sigils
+                ? "SIGILS FOR " + NativeDeckBuilder.SigilCardName.ToUpperInvariant()
+                : pool ? "CLICK A CARD TO ADD IT"
+                : selected ? NativeDeckBuilder.SelectedCardName.ToUpperInvariant() + " SELECTED"
+                           : "CLICK A CARD TO CHOOSE IT";
 
-            GUILayout.BeginArea(new Rect(bar.x + 12f, bar.y + 8f, bar.width - 24f, bar.height - 16f));
+            string counts = sigils
+                ? $"max {DeckStore.MaxAddedSigils} sigils"
+                : $"deck {DeckStore.Deck.Count}/{DeckStore.MaxCards}";
+
+            const float w = 860f;
+            const float barPad = 14f;
+
+            var bar = new Rect((Screen.width / UiScale - w) * 0.5f, 12f, w, _barH);
+
+            GUI.DrawTexture(bar, _panelBg);
+            Frame(bar, GoldSoft);
+
+            // Generous area to lay out in; the drawn height comes from what was measured
+            // last frame. A fixed 84px was too short for the larger font and clipped the
+            // whole button row off the bottom, which read as the buttons not existing.
+            GUILayout.BeginArea(new Rect(bar.x + barPad, bar.y + barPad, bar.width - barPad * 2f, 400f));
+            GUILayout.BeginVertical();
 
             GUILayout.BeginHorizontal();
-            GUILayout.Label(mode, _section);
+
+            // ExpandWidth(false), or the label takes the whole row by default and pushes
+            // the page counter off the end of the bar - which is why shortening the text
+            // never brought it back.
+            GUILayout.Label(mode, _section, GUILayout.ExpandWidth(false));
             GUILayout.FlexibleSpace();
-            GUILayout.Label(counts, _small);
+            GUILayout.Label(counts, _small, GUILayout.ExpandWidth(false));
             GUILayout.EndHorizontal();
 
             GUILayout.Space(4f);
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("< Prev", _button, GUILayout.Width(90f))) NativeDeckBuilder.PrevPage();
-            if (GUILayout.Button("Next >", _button, GUILayout.Width(90f))) NativeDeckBuilder.NextPage();
+            if (GUILayout.Button("< Prev", _button, GUILayout.Width(80f))) NativeDeckBuilder.PrevPage();
+
+            // Between the arrows with a width of its own. Sharing the row above with a
+            // label meant it kept being pushed off the end of the bar.
+            //
+            // Drawn at the font's own size. Two attempts at magnifying it through the GUI
+            // matrix both landed it on top of the Next button - nesting a scale inside the
+            // one the whole interface already uses is more trouble than a slightly larger
+            // page number is worth. It is bold and light-coloured instead.
+            GUILayout.Space(12f);
+            // A fixed height matching the buttons, so MiddleCenter has something to centre
+            // within. Not ExpandHeight: the area around this is deliberately over-tall so
+            // the bar can measure itself, and the label expanded to fill all of it.
+            GUILayout.Label($"{NativeDeckBuilder.Page + 1} / {NativeDeckBuilder.PageCount}",
+                            _pageLabel, GUILayout.Width(90f), GUILayout.Height(ButtonRowHeight));
+            GUILayout.Space(12f);
+
+            if (GUILayout.Button("Next >", _button, GUILayout.Width(80f))) NativeDeckBuilder.NextPage();
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button(pool ? "View My Deck" : "Browse All Cards", _button, GUILayout.Width(190f)))
+            if (sigils)
+            {
+                if (GUILayout.Button("Back to Deck", _button, GUILayout.Width(160f)))
+                    NativeDeckBuilder.ExitSigilMode();
+
+                GUILayout.Space(8f);
+                if (GUILayout.Button("Remove Card", _quiet, GUILayout.Width(160f)))
+                    NativeDeckBuilder.RemoveTargetCard();
+            }
+            else if (!pool && selected)
+            {
+                // A card is chosen, so both things you might do to it are their own button.
+                if (GUILayout.Button("Add Sigils", _primary, GUILayout.Width(140f)))
+                    NativeDeckBuilder.EditSelectedSigils();
+
+                GUILayout.Space(8f);
+                if (GUILayout.Button("Delete Card", _quiet, GUILayout.Width(140f)))
+                    NativeDeckBuilder.DeleteSelected();
+
+                GUILayout.Space(8f);
+                if (GUILayout.Button("Cancel", _quiet, GUILayout.Width(100f)))
+                    NativeDeckBuilder.ClearSelection();
+            }
+            else if (!pool)
+            {
+                if (GUILayout.Button("Browse All Cards", _button, GUILayout.Width(190f)))
+                    NativeDeckBuilder.ToggleMode();
+            }
+            else if (GUILayout.Button("View My Deck", _button, GUILayout.Width(190f)))
                 NativeDeckBuilder.ToggleMode();
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Done  [F7]", _button, GUILayout.Width(100f))) NativeDeckBuilder.Close();
+            if (GUILayout.Button("Done", _button, GUILayout.Width(90f))) NativeDeckBuilder.Close();
             GUILayout.EndHorizontal();
+
+            GUILayout.EndVertical();
+
+            if (Event.current.type == EventType.Repaint)
+                _barH = GUILayoutUtility.GetLastRect().yMax + barPad * 2f;
 
             GUILayout.EndArea();
 
@@ -623,6 +724,9 @@ namespace InscryptionMP
         private const float Pad = 24f;   // outer breathing room
         private const float Gap = 14f;   // between related rows
         private const float Section = 22f;   // between groups
+
+        /// <summary>Height of a control-bar button, for lining labels up beside them.</summary>
+        private const float ButtonRowHeight = 44f;
 
         private void DrawTitle()
         {

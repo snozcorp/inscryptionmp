@@ -75,11 +75,27 @@ namespace InscryptionMP
         /// </summary>
         private static string[] GainedSigils(PlayableCard card)
         {
-            var mods = card.TemporaryMods;
-            if (mods == null || mods.Count == 0) return null;
+            var gained = new List<Ability>();
 
-            List<Ability> gained = AbilitiesUtil.GetAbilitiesFromMods(mods);
-            if (gained == null || gained.Count == 0) return null;
+            // Picked up during the match: totems, latches, evolution.
+            if (card.TemporaryMods != null && card.TemporaryMods.Count > 0)
+            {
+                var fromMods = AbilitiesUtil.GetAbilitiesFromMods(card.TemporaryMods);
+                if (fromMods != null) gained.AddRange(fromMods);
+            }
+
+            // Chosen in the deck builder. These live on the card's own Mods because that
+            // is what makes the game treat them as real abilities, but the peer resolves
+            // our card by name and gets the plain version - so they have to travel too.
+            if (card.Info?.Mods != null && card.Info.Mods.Count > 0)
+            {
+                var fromCard = AbilitiesUtil.GetAbilitiesFromMods(card.Info.Mods);
+                if (fromCard != null)
+                    foreach (Ability a in fromCard)
+                        if (!gained.Contains(a)) gained.Add(a);
+            }
+
+            if (gained.Count == 0) return null;
 
             var names = new string[gained.Count];
             for (int i = 0; i < gained.Count; i++) names[i] = gained[i].ToString();

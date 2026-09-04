@@ -19,6 +19,80 @@ namespace InscryptionMP
     {
         public static bool IsOpen { get; private set; }
         public static bool PoolMode { get; private set; }
+
+        /// <summary>
+        /// Which deck entry is having its sigils chosen, or -1 when browsing normally.
+        ///
+        /// In this mode the array shows the same card once per available sigil, each with
+        /// that sigil applied - so you pick the card you want rather than a name from a
+        /// list, and see exactly what it will look like on the table.
+        /// </summary>
+        public static int SigilTarget { get; private set; } = -1;
+
+        public static bool SigilMode => SigilTarget >= 0;
+
+        /// <summary>
+        /// The deck card you have clicked, or -1 for none.
+        ///
+        /// Clicking picks a card; the bar then offers what can be done with it. Making the
+        /// click itself mean "remove" or "edit sigils" depending on a mode meant you had to
+        /// know which mode you were in before touching anything.
+        /// </summary>
+        public static int SelectedEntry { get; private set; } = -1;
+
+        public static bool HasSelection => SelectedEntry >= 0 && SelectedEntry < DeckStore.Deck.Count;
+
+        public static string SelectedCardName =>
+            HasSelection ? DeckStore.BaseName(DeckStore.Deck[SelectedEntry]) : "";
+
+        public static void ClearSelection()
+        {
+            SelectedEntry = -1;
+            _refresh = true;
+        }
+
+        /// <summary>Opens the sigil pages for the selected card.</summary>
+        public static void EditSelectedSigils()
+        {
+            if (!HasSelection) return;
+            EnterSigilMode(SelectedEntry);
+        }
+
+        /// <summary>Takes the selected card out of the deck.</summary>
+        public static void DeleteSelected()
+        {
+            if (!HasSelection) return;
+
+            string card = SelectedCardName;
+            DeckStore.RemoveAt(SelectedEntry);
+            Notice.Say($"Removed {card} ({DeckStore.Deck.Count} cards).");
+            Trace.Info($"[deckui] removed {card} ({DeckStore.Deck.Count} cards)");
+            ClearSelection();
+        }
+
+        /// <summary>The sigil each card on the current page stands for.</summary>
+        private static readonly List<Ability> PageSigils = new List<Ability>();
+
+        /// <summary>The card whose sigils are being chosen, for the control bar.</summary>
+        public static string SigilCardName =>
+            SigilMode && SigilTarget < DeckStore.Deck.Count
+                ? DeckStore.BaseName(DeckStore.Deck[SigilTarget])
+                : "";
+
+        public static void EnterSigilMode(int deckIndex)
+        {
+            SigilTarget = deckIndex;
+            Page = 0;
+            _refresh = true;
+        }
+
+        public static void ExitSigilMode()
+        {
+            SigilTarget = -1;
+            SelectedEntry = -1;
+            Page = 0;
+            _refresh = true;
+        }
         public static string LastError { get; private set; }
 
         /// <summary>
@@ -54,12 +128,14 @@ namespace InscryptionMP
         public static void ToggleMode()
         {
             PoolMode = !PoolMode;
+            SelectedEntry = -1;
             Page = 0;
             _refresh = true;
         }
 
         private static int SourceCount()
         {
+            if (SigilMode) return SigilPool.For(ActInfo.Selected).Count;
             return PoolMode ? DeckStore.Pool.Count : DeckStore.Deck.Count;
         }
 
@@ -180,6 +256,17 @@ namespace InscryptionMP
                 if (_refresh) continue;         // page or mode changed
                 if (picked == null) break;      // cancelled
 
+                if (SigilMode)
+                {
+                    // Which sigil the chosen card stood for. Matched by reference: every
+                    // card on this page is the same card, so the name tells us nothing.
+                    int slot = cards.FindIndex(c => ReferenceEquals(c, picked.Info));
+                    if (slot >= 0 && slot < PageSigils.Count) ToggleSigil(PageSigils[slot]);
+
+                    yield return CleanUpPicked(picked);
+                    continue;
+                }
+
                 string id = picked.Info != null ? picked.Info.name : null;
                 if (string.IsNullOrEmpty(id)) continue;
 
@@ -190,8 +277,15 @@ namespace InscryptionMP
                 }
                 else
                 {
-                    DeckStore.Remove(id);
-                    Trace.Info($"[deckui] removed {id} ({DeckStore.Deck.Count} cards)");
+                    // A click selects; the bar says what can be done with it.
+                    int index = DeckStore.Deck.FindIndex(e => DeckStore.BaseName(e) == id);
+                    if (index >= 0)
+                    {
+                        SelectedEntry = index;
+                        Notice.Say($"{id} selected - add sigils or delete it.");
+                        yield return CleanUpPicked(picked);
+                        continue;
+                    }
                 }
 
                 DeckStore.Save();
@@ -226,8 +320,69 @@ namespace InscryptionMP
         }
 
         /// <summary>The current page of whichever list we're browsing.</summary>
+        /// <summary>
+        /// Destroys the card that was clicked.
+        ///
+        /// SelectCardFrom drops the picked card from its own cleanup list, because in the
+        /// campaign it animates away into your deck. Nothing else destroys it, so without
+        /// this every click leaves a card stranded on the table.
+        /// </summary>
+        private static IEnumerator CleanUpPicked(SelectableCard picked)
+        {
+            if (picked != null) Object.Destroy(picked.gameObject);
+            yield return new WaitForSeconds(0.15f);
+        }
+
+        /// <summary>Takes the card being edited out of the deck entirely.</summary>
+        public static void RemoveTargetCard()
+        {
+            if (SigilTarget < 0 || SigilTarget >= DeckStore.Deck.Count) return;
+
+            string card = DeckStore.BaseName(DeckStore.Deck[SigilTarget]);
+            DeckStore.RemoveAt(SigilTarget);
+            Notice.Say($"Removed {card} ({DeckStore.Deck.Count} cards).");
+            Trace.Info($"[deckui] removed {card} ({DeckStore.Deck.Count} cards)");
+
+            ExitSigilMode();
+        }
+
+        /// <summary>Adds or removes one sigil on the card being edited.</summary>
+        private static void ToggleSigil(Ability ability)
+        {
+            if (SigilTarget < 0 || SigilTarget >= DeckStore.Deck.Count) return;
+
+            string entry = DeckStore.Deck[SigilTarget];
+            string card = DeckStore.BaseName(entry);
+            var chosen = new List<string>(DeckStore.SigilsOf(entry));
+            string id = ability.ToString();
+
+            if (chosen.Contains(id))
+            {
+                chosen.Remove(id);
+                Notice.Say($"{card}: removed {SigilPool.DisplayName(ability)}");
+            }
+            else if (chosen.Count >= DeckStore.MaxAddedSigils)
+            {
+                // Two is what the game can draw; a third would be invisible in Act 2.
+                Notice.Bad($"{card} already has {DeckStore.MaxAddedSigils} sigils. Remove one first.");
+                return;
+            }
+            else
+            {
+                chosen.Add(id);
+                Notice.Good($"{card}: added {SigilPool.DisplayName(ability)}");
+            }
+
+            DeckStore.SetSigils(SigilTarget, chosen);
+            _refresh = true;   // redraw the page so the change shows on the cards
+        }
+
         private static List<CardInfo> BuildList()
         {
+            PageSigils.Clear();
+
+            if (SigilMode) return BuildSigilPage();
+
             var all = new List<CardInfo>();
 
             if (PoolMode)
@@ -236,10 +391,16 @@ namespace InscryptionMP
             }
             else
             {
-                foreach (string name in DeckStore.Deck)
+                foreach (string entry in DeckStore.Deck)
                 {
-                    CardInfo info = CardLoader.GetCardByName(name);
-                    if (info != null) all.Add(info);
+                    // Entries can carry sigils now, so the card is the part before the
+                    // colon - resolving the whole entry finds nothing and the card would
+                    // quietly disappear from your own deck view.
+                    CardInfo info = CardLoader.GetCardByName(DeckStore.BaseName(entry));
+                    if (info == null) continue;
+
+                    string[] sigils = DeckStore.SigilsOf(entry);
+                    all.Add(sigils.Length > 0 ? Preview(info, sigils) : info);
                 }
             }
 
@@ -247,6 +408,69 @@ namespace InscryptionMP
             if (start >= all.Count) { Page = 0; start = 0; }
             int count = Mathf.Min(PageSize, all.Count - start);
             return all.GetRange(start, count);
+        }
+
+        /// <summary>
+        /// The card being edited, once per sigil it could take.
+        ///
+        /// Every entry is the same card wearing a different sigil, so choosing is a matter
+        /// of looking at the cards rather than reading names - and what you see is what
+        /// ends up on the table.
+        /// </summary>
+        private static List<CardInfo> BuildSigilPage()
+        {
+            var cards = new List<CardInfo>();
+            if (SigilTarget < 0 || SigilTarget >= DeckStore.Deck.Count) return cards;
+
+            string entry = DeckStore.Deck[SigilTarget];
+            CardInfo baseInfo = CardLoader.GetCardByName(DeckStore.BaseName(entry));
+            if (baseInfo == null) return cards;
+
+            var chosen = new List<string>(DeckStore.SigilsOf(entry));
+            List<Ability> pool = SigilPool.For(ActInfo.Selected);
+
+            int start = Page * PageSize;
+            if (start >= pool.Count) { Page = 0; start = 0; }
+            int count = Mathf.Min(PageSize, pool.Count - start);
+
+            for (int i = start; i < start + count; i++)
+            {
+                Ability ability = pool[i];
+
+                // Already-chosen sigils are shown as they are on the card, so the page
+                // reads as "this is what it looks like now" rather than a preview of
+                // adding it a second time.
+                var withAll = new List<string>(chosen);
+                if (!withAll.Contains(ability.ToString())) withAll.Add(ability.ToString());
+
+                cards.Add(Preview(baseInfo, withAll.ToArray()));
+                PageSigils.Add(ability);
+            }
+
+            return cards;
+        }
+
+        /// <summary>
+        /// A throwaway copy of a card carrying some sigils, purely to look at.
+        ///
+        /// Cloned because CardLoader hands out one shared CardInfo per card - adding
+        /// sigils to it would put them on that card everywhere in the game.
+        /// </summary>
+        private static CardInfo Preview(CardInfo info, string[] sigils)
+        {
+            var copy = info.Clone() as CardInfo;
+            if (copy == null) return info;
+
+            var mod = new CardModificationInfo { singletonId = "inscryptionmp-preview" };
+            foreach (string name in sigils)
+            {
+                if (!System.Enum.IsDefined(typeof(Ability), name)) continue;
+                var ability = (Ability)System.Enum.Parse(typeof(Ability), name);
+                if (!copy.Abilities.Contains(ability)) mod.abilities.Add(ability);
+            }
+
+            if (mod.abilities.Count > 0) copy.Mods.Add(mod);
+            return copy;
         }
     }
 }

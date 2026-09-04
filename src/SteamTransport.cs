@@ -20,6 +20,7 @@ namespace InscryptionMP
         private const string LobbyKey = "inscryption_mp";
         private const string LobbyValue = "1";
         private const string LobbyHostKey = "host_name";
+        private const string LobbyActKey = "act";
 
         private static PropertyInfoCache _initCache;
 
@@ -113,8 +114,19 @@ namespace InscryptionMP
             Active = true;
             IsHost = true;
             Status = "creating lobby...";
+            Notice.Busy("Creating a Steam lobby...");
             Trace.Info("[steam] creating lobby");
             SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypePublic, 2);
+        }
+
+        /// <summary>
+        /// Re-advertises the act while hosting. The picker can change after the lobby is
+        /// created, and a lobby claiming the wrong act is worse than one claiming none.
+        /// </summary>
+        public static void PublishSelectedAct()
+        {
+            if (!IsHost || !_lobby.IsValid() || !Available) return;
+            SteamMatchmaking.SetLobbyData(_lobby, LobbyActKey, ((int)ActInfo.Selected).ToString());
         }
 
         public static void RefreshLobbies()
@@ -135,6 +147,7 @@ namespace InscryptionMP
             Searching = true;
             _searchStartedAt = Environment.TickCount;
             Status = "searching...";
+            Notice.Busy("Searching for games...");
             Trace.Info("[steam] requesting lobby list");
             SteamMatchmaking.AddRequestLobbyListStringFilter(
                 LobbyKey, LobbyValue, ELobbyComparison.k_ELobbyComparisonEqual);
@@ -151,6 +164,7 @@ namespace InscryptionMP
             Active = true;
             IsHost = false;
             Status = "joining...";
+            Notice.Busy("Joining lobby...");
             Trace.Info("[steam] joining lobby " + lobby);
             SteamMatchmaking.JoinLobby(lobby);
         }
@@ -168,6 +182,10 @@ namespace InscryptionMP
             _lobby = new CSteamID(e.m_ulSteamIDLobby);
             SteamMatchmaking.SetLobbyData(_lobby, LobbyKey, LobbyValue);
             SteamMatchmaking.SetLobbyData(_lobby, LobbyHostKey, SteamFriends.GetPersonaName());
+
+            // The host's act decides the table for both players, so say which one before
+            // anyone commits to joining.
+            SteamMatchmaking.SetLobbyData(_lobby, LobbyActKey, ((int)ActInfo.Selected).ToString());
             Status = "waiting for opponent";
             Trace.Info("[steam] lobby created - waiting for opponent");
         }
@@ -176,7 +194,12 @@ namespace InscryptionMP
         {
             Searching = false;
             Lobbies.Clear();
-            if (failed) { Status = "search failed - try again"; return; }
+            if (failed)
+            {
+                Status = "search failed - try again";
+                Notice.Bad("Steam lobby search failed. Try again.");
+                return;
+            }
 
             CSteamID me = SteamUser.GetSteamID();
             for (int i = 0; i < e.m_nLobbiesMatching; i++)
@@ -189,6 +212,11 @@ namespace InscryptionMP
 
                 string name = SteamMatchmaking.GetLobbyData(id, LobbyHostKey);
                 if (string.IsNullOrEmpty(name)) name = id.ToString();
+
+                string actRaw = SteamMatchmaking.GetLobbyData(id, LobbyActKey);
+                if (int.TryParse(actRaw, out int actNum) && actNum >= 1 && actNum <= 3)
+                    name += "   -   " + ActInfo.Name((MatchAct)actNum);
+
                 Lobbies.Add(new KeyValuePair<CSteamID, string>(id, name));
             }
             // Say plainly that a search happened and came back empty. Drawing nothing at
@@ -196,6 +224,9 @@ namespace InscryptionMP
             Status = Lobbies.Count == 0
                 ? "no games found - someone has to Host Lobby first"
                 : Lobbies.Count + (Lobbies.Count == 1 ? " game found" : " games found");
+
+            if (Lobbies.Count == 0) Notice.Say("No games found. Someone has to Host Lobby first.");
+            else Notice.Good(Status);
             Trace.Info("[steam] found " + Lobbies.Count + " lobbies");
         }
 

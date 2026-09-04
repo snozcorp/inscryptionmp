@@ -103,6 +103,7 @@ namespace InscryptionMP
                 return;
             }
 
+            Notice.Busy($"Starting {ActInfo.Name(ActInfo.Current)} match...");
             Trace.Info($"[versus] not in gameplay scene - loading {ActScene} for {ActInfo.Name(ActInfo.Current)}");
 
             // A versus match must never be able to write to the campaign save.
@@ -257,6 +258,7 @@ namespace InscryptionMP
             }
 
             LoadedTableForDeck = true;
+            Notice.Busy("Opening the card table...");
             Trace.Info($"[versus] loading {DeckTableScene} to edit the {ActInfo.Name(ActInfo.Selected)} deck");
             SaveManager.savingDisabled = true;
             PrepareIsolatedRun(MatchAct.Act1);
@@ -281,14 +283,15 @@ namespace InscryptionMP
             }
 
             PendingStart = false;
+            Notice.ClearIfBusy();
             Trace.Info("[versus] scene ready - starting match");
             Start(host);
         }
 
         public static bool CanStart()
         {
-            if (!Net.Connected) { Trace.Warn("[versus] no peer connected"); return false; }
-            if (InMatch)        { Trace.Warn("[versus] already in a match"); return false; }
+            if (!Net.Connected) { Notice.Bad("No opponent connected yet."); return false; }
+            if (InMatch)        { Notice.Say("You're already in a match."); return false; }
             if (Singleton<TurnManager>.Instance == null)
             {
                 Trace.Warn("[versus] no TurnManager - must be in the Act 1 scene");
@@ -504,6 +507,8 @@ namespace InscryptionMP
             if (!InMatch) return;
 
             LastResult = playerWon ? "you won" : "you lost";
+            if (playerWon) Notice.Good("You won.");
+            else Notice.Say("You lost.");
             Trace.Info($"[versus] match over - {LastResult} ({reason})");
 
             Net.Send(playerWon ? Protocol.Lost : Protocol.Won);   // their result is our inverse

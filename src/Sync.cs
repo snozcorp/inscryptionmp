@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using DiskCardGame;
 using HarmonyLib;
 
@@ -37,7 +38,10 @@ namespace InscryptionMP
         /// <summary>Exposed so a reconnect can re-assert our board.</summary>
         internal static string[] SnapshotPlayerSlotsPublic() => SnapshotPlayerSlots();
 
-        /// <summary>Card name in each of our player slots, or "-" for empty.</summary>
+        /// <summary>
+        /// What each of our player slots is showing: card and its current stats, or "-".
+        /// The peer applies these verbatim, so this is the sender's own screen as truth.
+        /// </summary>
         private static string[] SnapshotPlayerSlots()
         {
             var board = Singleton<BoardManager>.Instance;
@@ -48,9 +52,37 @@ namespace InscryptionMP
             for (int i = 0; i < count; i++)
             {
                 var card = slots[i] != null ? slots[i].Card : null;
-                names[i] = (card != null && card.Info != null) ? card.Info.name : Protocol.EmptySlot;
+                if (card == null || card.Info == null)
+                {
+                    names[i] = Protocol.EmptySlot;
+                    continue;
+                }
+
+                // A protocol 2 peer parses the whole token as a card name, so sending it
+                // stats would leave it unable to resolve anything on our board.
+                names[i] = Net.PeerSpeaksV3
+                    ? Protocol.EncodeSlot(card.Info.name, card.Attack, card.Health, GainedSigils(card))
+                    : card.Info.name;
             }
             Trace.Info("[sync] board snapshot: " + string.Join("|", names));
+            return names;
+        }
+
+        /// <summary>
+        /// Abilities this card has gained during the match. Temporary mods are where a
+        /// totem buff, a latch or an evolution lands, so they are exactly the difference
+        /// between our card and the same card on the peer's screen.
+        /// </summary>
+        private static string[] GainedSigils(PlayableCard card)
+        {
+            var mods = card.TemporaryMods;
+            if (mods == null || mods.Count == 0) return null;
+
+            List<Ability> gained = AbilitiesUtil.GetAbilitiesFromMods(mods);
+            if (gained == null || gained.Count == 0) return null;
+
+            var names = new string[gained.Count];
+            for (int i = 0; i < gained.Count; i++) names[i] = gained[i].ToString();
             return names;
         }
 

@@ -59,6 +59,18 @@ def reader(sock, writer, auto):
             turn += 1
             send(writer, f"PLAY {card} {slot}", "  (auto)")
             time.sleep(0.6)
+
+            # Protocol 3 board snapshots carry stats. Claim a deliberately silly
+            # attack so the correction is obvious on screen if it is working.
+            board = ["-"] * 4
+            board[slot] = f"{card}:2/3:Sniper"
+            send(writer, "BOARD " + "|".join(board), "  (auto)")
+            time.sleep(0.2)
+
+            # Our cards claim Sniper, so tell the peer where we aimed it.
+            # Always slot 0, which is obvious to spot on screen.
+            send(writer, f"AIM {slot} 0", "  (auto)")
+            time.sleep(0.2)
             send(writer, "END", "  (auto)")
 
 

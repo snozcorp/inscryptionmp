@@ -67,6 +67,7 @@ namespace InscryptionMP
             Shutdown();
             TcpIsHost = true;
             _running = true;
+            Notice.Busy($"Waiting for someone to connect on port {port}...");
             _thread = new Thread(() => HostLoop(port)) { IsBackground = true, Name = "InscryptionMP-Host" };
             _thread.Start();
             Trace.Info($"[net] hosting on port {port}, waiting for peer...");
@@ -85,6 +86,7 @@ namespace InscryptionMP
             _running = true;
             _thread = new Thread(() => JoinLoop(host, port)) { IsBackground = true, Name = "InscryptionMP-Client" };
             _thread.Start();
+            Notice.Busy($"Connecting to {host}:{port}...");
             Trace.Info($"[net] connecting to {host}:{port}...");
         }
 
@@ -100,6 +102,7 @@ namespace InscryptionMP
                 while (_running)
                 {
                     _client = _listener.AcceptTcpClient();
+                    Notice.Good("Opponent connected.");
                     Trace.Info("[net] peer connected.");
                     Pump();
                     TcpConnected = false;
@@ -122,6 +125,7 @@ namespace InscryptionMP
                     {
                         _client = new TcpClient();
                         _client.Connect(host, port);
+                        Notice.Good("Connected.");
                         Trace.Info("[net] connected to host.");
                         Pump();
                         TcpConnected = false;
@@ -129,6 +133,10 @@ namespace InscryptionMP
                     catch (Exception e)
                     {
                         if (!_running) break;
+
+                        // The reason used to live only in the log, so the panel simply went
+                        // back to "offline" and the player had nothing to act on.
+                        Notice.Bad($"Couldn't reach {host}:{port} - {e.Message}");
                         Trace.Warn($"[net] connect failed ({e.Message}) - retrying");
                     }
 
@@ -182,12 +190,43 @@ namespace InscryptionMP
         /// <summary>True once the peer has greeted us with a compatible version.</summary>
         public static bool PeerVerified { get; private set; }
 
+        /// <summary>
+        /// The protocol the peer greeted us with. Everything we send is written to the
+        /// lower of this and ours, so a newer build never speaks over an older one.
+        /// </summary>
+        public static int PeerProtocol { get; private set; } = Protocol.Version;
+
+        /// <summary>Whether the peer understands the richer protocol 3 messages.</summary>
+        public static bool PeerSpeaksV3 => PeerProtocol >= 3;
+
         /// <summary>Set when the peer asks us to start a match.</summary>
         public static MatchAct? PendingStartRequest { get; set; }
+
+        /// <summary>
+        /// Sniper aims the peer has sent, keyed by the slot their card sits in.
+        ///
+        /// Out-of-band because these arrive during combat, when nothing is draining the
+        /// normal inbox - the opponent's turn loop has already handed control to the
+        /// engine's attack sequence by then.
+        /// </summary>
+        private static readonly ConcurrentDictionary<int, int[]> Aims = new ConcurrentDictionary<int, int[]>();
+
+        public static bool TryTakeAim(int attackerSlot, out int[] targets)
+        {
+            return Aims.TryRemove(attackerSlot, out targets);
+        }
+
+        public static void ClearAims() => Aims.Clear();
 
         /// <summary>Returns true if the message was handled out-of-band.</summary>
         public static bool CaptureResult(string line)
         {
+            if (Protocol.TryParseAim(line, out int aimSlot, out int[] aimTargets))
+            {
+                Aims[aimSlot] = aimTargets;
+                return true;
+            }
+
             if (Protocol.TryParseStart(line, out MatchAct startAct))
             {
                 PendingStartRequest = startAct;
@@ -199,19 +238,34 @@ namespace InscryptionMP
 
             if (Protocol.TryParseHello(line, out int proto, out string modVersion))
             {
-                if (proto != Protocol.Version)
+                PeerProtocol = proto;
+
+                if (proto < Protocol.MinCompatible)
                 {
                     HandshakeError =
-                        "version mismatch - you have mod " + Plugin.Version +
+                        "their build is too old - you have mod " + Plugin.Version +
                         " (protocol " + Protocol.Version + "), they have " + modVersion +
                         " (protocol " + proto + ")";
                     Trace.Error("[net] " + HandshakeError);
+                    Notice.Bad("Opponent's mod is too old to play against.");
                     PeerVerified = false;
                 }
                 else
                 {
                     PeerVerified = true;
-                    Trace.Info("[net] peer verified - mod " + modVersion + ", protocol " + proto);
+                    HandshakeError = null;
+
+                    if (proto < Protocol.Version)
+                    {
+                        // Play their dialect rather than refusing them. Everything the
+                        // newer protocol added is an extra, not a requirement.
+                        Trace.Info($"[net] peer speaks protocol {proto}; dropping to it");
+                        Notice.Say($"Opponent is on mod {modVersion} - playing without the newer extras.");
+                    }
+                    else
+                    {
+                        Trace.Info("[net] peer verified - mod " + modVersion + ", protocol " + proto);
+                    }
                 }
                 return true;
             }
@@ -247,6 +301,7 @@ namespace InscryptionMP
             int dropped = 0;
             while (Inbox.TryDequeue(out _)) dropped++;
             dropped += SteamTransport.FlushInbox();
+            ClearAims();
 
             if (dropped > 0) Trace.Warn($"[net] dropped {dropped} stale message(s) from the last match");
         }
@@ -281,6 +336,7 @@ namespace InscryptionMP
             PendingStartRequest = null;
             HandshakeError = null;
             PeerVerified = false;
+            PeerProtocol = Protocol.Version;
             _writer = null; _client = null; _listener = null;
         }
     }

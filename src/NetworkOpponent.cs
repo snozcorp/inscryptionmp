@@ -1,4 +1,6 @@
+using System;
 using System.Collections;
+using System.Collections.Generic;
 using DiskCardGame;
 using UnityEngine;
 
@@ -134,33 +136,109 @@ namespace InscryptionMP
 
             for (int i = 0; i < count; i++)
             {
-                string wanted = slotNames[i];
+                Protocol.SlotState wanted = Protocol.DecodeSlot(slotNames[i]);
                 CardSlot slot = slots[i];
                 string actual = (slot.Card != null && slot.Card.Info != null)
                     ? slot.Card.Info.name
                     : Protocol.EmptySlot;
 
-                if (wanted == actual) continue;
+                bool sameCard = wanted.Name == actual;
 
-                if (slot.Card != null)
+                if (!sameCard)
                 {
-                    Trace.Info($"[opp] reconcile: clearing slot {i} ({actual})");
-                    yield return RemoveCardAnimated(slot);
-                }
-
-                if (wanted != Protocol.EmptySlot)
-                {
-                    CardInfo info = CardLoader.GetCardByName(wanted);
-                    if (info == null)
+                    if (slot.Card != null)
                     {
-                        Trace.Error($"[opp] reconcile: unknown card '{wanted}'");
-                        continue;
+                        Trace.Info($"[opp] reconcile: clearing slot {i} ({actual})");
+                        yield return RemoveCardAnimated(slot);
                     }
-                    Trace.Info($"[opp] reconcile: slot {i} -> {wanted}");
-                    yield return board.CreateCardInSlot(info, slot);
-                    yield return new WaitForSeconds(0.05f);
+
+                    if (!wanted.IsEmpty)
+                    {
+                        CardInfo info = CardLoader.GetCardByName(wanted.Name);
+                        if (info == null)
+                        {
+                            Trace.Error($"[opp] reconcile: unknown card '{wanted.Name}'");
+                            continue;
+                        }
+                        Trace.Info($"[opp] reconcile: slot {i} -> {wanted.Name}");
+                        yield return board.CreateCardInSlot(info, slot);
+                        yield return new WaitForSeconds(0.05f);
+                    }
                 }
+
+                // Same card, or one we just placed: make its numbers match theirs.
+                if (!wanted.IsEmpty && slot.Card != null) MatchStats(slot.Card, wanted, i);
             }
+        }
+
+        /// <summary>Singleton id so repeated corrections replace rather than pile up.</summary>
+        private const string SyncModId = "inscryptionmp-sync";
+
+        /// <summary>
+        /// Nudges our copy of a peer card until it shows the stats they report.
+        ///
+        /// The adjustment is a delta against what the card currently shows, folded into a
+        /// single temporary mod. AddTemporaryMod replaces by singletonId, so this stays one
+        /// mod per card however many times it is corrected. The peer's screen is the
+        /// authority: whatever their card reads, ours is made to read the same.
+        /// </summary>
+        private void MatchStats(PlayableCard card, Protocol.SlotState wanted, int slotIndex)
+        {
+            // Nothing to match against: an older peer sends names only, and treating the
+            // absent numbers as zero would wipe out its board.
+            if (!wanted.HasStats) return;
+
+            int attackDelta = wanted.Attack - card.Attack;
+            int healthDelta = wanted.Health - card.Health;
+            List<Ability> missing = MissingSigils(card, wanted.Sigils);
+
+            if (attackDelta == 0 && healthDelta == 0 && missing.Count == 0) return;
+
+            CardModificationInfo mod = card.TemporaryMods?.Find(m => m.singletonId == SyncModId);
+            if (mod == null)
+            {
+                mod = new CardModificationInfo { singletonId = SyncModId };
+            }
+
+            mod.attackAdjustment += attackDelta;
+            mod.healthAdjustment += healthDelta;
+            foreach (Ability ability in missing) mod.abilities.Add(ability);
+
+            card.AddTemporaryMod(mod);
+            card.OnStatsChanged();   // also re-renders, so new sigil icons appear
+
+            string sigilNote = missing.Count == 0 ? "" : ", gained " + string.Join(", ", missing);
+            Trace.Info($"[opp] slot {slotIndex} {wanted.Name}: corrected to {wanted.Attack}/{wanted.Health} " +
+                       $"(atk {attackDelta:+#;-#;0}, hp {healthDelta:+#;-#;0}{sigilNote})");
+        }
+
+        /// <summary>
+        /// Sigils the peer's card has that ours doesn't yet. Reads back through the mods
+        /// we've already applied, so a sigil is never added twice, and skips names this
+        /// build doesn't know rather than throwing on a peer running something newer.
+        /// </summary>
+        private static List<Ability> MissingSigils(PlayableCard card, string[] wanted)
+        {
+            var missing = new List<Ability>();
+            if (wanted == null || wanted.Length == 0) return missing;
+
+            List<Ability> have = card.TemporaryMods == null
+                ? new List<Ability>()
+                : AbilitiesUtil.GetAbilitiesFromMods(card.TemporaryMods) ?? new List<Ability>();
+
+            foreach (string name in wanted)
+            {
+                if (!Enum.IsDefined(typeof(Ability), name))
+                {
+                    Trace.Warn($"[opp] unknown sigil '{name}' from peer - ignoring");
+                    continue;
+                }
+
+                var ability = (Ability)Enum.Parse(typeof(Ability), name);
+                if (have.Contains(ability) || missing.Contains(ability)) continue;
+                missing.Add(ability);
+            }
+            return missing;
         }
 
         /// <summary>Plays the peer's sacrifice with the game's own animation.</summary>

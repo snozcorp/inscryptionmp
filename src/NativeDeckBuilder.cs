@@ -90,6 +90,7 @@ namespace InscryptionMP
             if (flow == null || flow.Transitioning) return;
 
             PendingOpen = false;
+            Notice.ClearIfBusy();
             Trace.Info("[deckui] table ready - opening card view");
             Open(host, poolMode: true);
         }
@@ -100,13 +101,13 @@ namespace InscryptionMP
             if (VersusMode.InMatch)
             {
                 LastError = "finish the match before editing your deck";
-                Trace.Warn("[deckui] " + LastError);
+                Notice.Bad("Finish the match before editing your deck.");
                 return;
             }
             if (!Available)
             {
                 LastError = "card view needs the Act 1 table - use Load Table first";
-                Trace.Warn("[deckui] " + LastError);
+                Notice.Bad("The card table isn't loaded yet.");
                 return;
             }
             if (Array == null)

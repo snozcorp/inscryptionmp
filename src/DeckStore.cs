@@ -164,6 +164,7 @@ namespace InscryptionMP
             }
             catch (Exception e)
             {
+                Notice.Bad($"Couldn't save your deck: {e.Message}");
                 Trace.Error($"[deck] save failed: {e.Message}");
             }
         }

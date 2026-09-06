@@ -34,6 +34,7 @@ namespace InscryptionMP
 
         private GUIStyle _chip, _label, _dim, _header, _section, _field, _button, _small;
         private GUIStyle _primary, _quiet, _warn, _resultText, _good, _busy, _close, _pageLabel;
+        private GUIStyle _countLabel;
         private GUIStyle _chipState, _chipInfo;
         private Texture2D _panelBg, _chipBg, _accent;
 
@@ -187,7 +188,7 @@ namespace InscryptionMP
             foreach (GUIStyle st in new[] { _chip, _label, _dim, _small, _header, _section,
                                             _field, _button, _primary, _quiet, _warn, _good,
                                             _busy, _close, _resultText, _chipState, _chipInfo,
-                                            _pageLabel })
+                                            _pageLabel, _countLabel })
             {
                 if (st == null) continue;
                 st.font = f;
@@ -278,6 +279,8 @@ namespace InscryptionMP
                 margin = new RectOffset(0, 0, 0, 0),
                 normal = { textColor = Bone },
             };
+
+            _countLabel = new GUIStyle(_pageLabel) { alignment = TextAnchor.MiddleRight };
 
             _warn = new GUIStyle(_small) { normal = { textColor = Rust } };
             _good = new GUIStyle(_small) { normal = { textColor = Gold } };
@@ -549,7 +552,10 @@ namespace InscryptionMP
             // never brought it back.
             GUILayout.Label(mode, _section, GUILayout.ExpandWidth(false));
             GUILayout.FlexibleSpace();
-            GUILayout.Label(counts, _small, GUILayout.ExpandWidth(false));
+
+            // A width of its own, like the page counter: left to measure itself this read
+            // as "deck" with the numbers clipped off the end.
+            GUILayout.Label(counts, _countLabel, GUILayout.Width(240f));
             GUILayout.EndHorizontal();
 
             GUILayout.Space(4f);

@@ -282,11 +282,6 @@ namespace InscryptionMP
 
             _countLabel = new GUIStyle(_pageLabel) { alignment = TextAnchor.MiddleRight };
 
-            // GUI.skin.label wraps by default, so a box even slightly too narrow keeps the
-            // first word and drops the rest - "deck 8/20" rendered as "deck". These are all
-            // one-liners, so none of them should ever wrap.
-            foreach (GUIStyle st in new[] { _countLabel, _pageLabel, _section, _chipState, _chipInfo })
-                st.wordWrap = false;
 
             _warn = new GUIStyle(_small) { normal = { textColor = Rust } };
             _good = new GUIStyle(_small) { normal = { textColor = Gold } };
@@ -308,6 +303,14 @@ namespace InscryptionMP
                 padding = new RectOffset(0, 0, 0, 0),
                 normal = { textColor = BoneDim },
             };
+
+            // After every style exists, not partway through building them: half of these
+            // were still null here and the throw left the whole panel unstyled and blank.
+            //
+            // GUI.skin.label wraps by default, so a box even slightly too narrow keeps the
+            // first word and drops the rest - "deck 8/20" rendered as "deck".
+            foreach (GUIStyle st in new[] { _countLabel, _pageLabel, _section, _chipState, _chipInfo })
+                if (st != null) st.wordWrap = false;
 
             ApplyFont();
         }

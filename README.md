@@ -127,6 +127,9 @@ ones worth knowing before you write an Inscryption mod of your own.
   than two real ones. Act 1 is the one verified across two machines and two Steam accounts.
 - Each client is authoritative over its own board, which is inherent to peer-to-peer with
   no referee. Play with people you trust.
+- **No consumable items.** The Pliers, the Dagger and the rest deal damage straight to
+  the scales that the other player never hears about, and the Dagger writes to the save
+  file's story events. A match carries none until they can be synced properly.
 - Some rarer card effects may not replicate perfectly on the opponent's screen.
   Please report anything that looks wrong.
 - Play with people you trust — this is built for playing with friends, not for

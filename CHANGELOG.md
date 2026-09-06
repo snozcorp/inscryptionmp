@@ -28,7 +28,20 @@ asked you to aim your opponent's card, at the wrong side of the board.
 instead of one crowded panel, and a single line that tells you what just happened
 instead of leaving you to guess whether a click did anything.
 
+**A match carries no consumable items.** A synthesised run was being seeded with the
+campaign's starting items, and none of them survive a match: the Pliers and the Dagger
+deal damage straight to the scales that the peer never hears about, so from that moment
+the two clients disagree about the score. The Dagger also writes `SpecialDaggerUsed` to
+the save file's story events — the player's real profile, which a match has no business
+touching — and queues a post-battle map node onto a run with no map. Both players now get
+the same empty slots. Syncing them properly is a feature for later.
+
 Also:
+- The title-screen card was appearing in the in-game pause menu too, on top of whatever
+  card was already there; `PauseMenu` owns a `MenuController` of its own, so the patch
+  caught both.
+- Without Kaycee's Mod the card landed on Exit Game, because `TweenInCards` removes the
+  ascension card after our hook has already laid the row out around it.
 - Act 2 no longer blanks a card's sigils when it carries more than the pixel layout
   covers; the display is clamped instead.
 - Deck entries can carry sigils (`CardName:Sigil,Sigil`); older deck files still load.

@@ -42,4 +42,10 @@ SIGILS
   for. Act 2 and Act 3 cards are browsed on Act 1's table, so their pixel
   art looks blocky there; in a match they render natively.
 
+ITEMS
+  A match carries no consumable items. What they do - damage straight to
+  the scales, a post-battle map node - is never sent to the other player,
+  and the Dagger writes to your save file's story events. Both players get
+  the same empty slots until they can be synced properly.
+
 Your campaign save is never written to during a match.

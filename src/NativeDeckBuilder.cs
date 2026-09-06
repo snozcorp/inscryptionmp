@@ -226,6 +226,8 @@ namespace InscryptionMP
                     continue;
                 }
 
+                SweepStrandedCards();
+
                 SelectableCard picked = null;
                 // SelectCardFrom mutates the list it is given, so hand it a copy.
                 yield return Array.SelectCardFrom(
@@ -309,6 +311,24 @@ namespace InscryptionMP
 
         /// <summary>The current page of whichever list we're browsing.</summary>
         /// <summary>Destroys the card that was clicked.</summary>
+        /// <summary>
+        /// Destroys anything still on the table before the next page is dealt.
+        ///
+        /// CleanUpCards destroys on a delay and never empties displayedCards, and the card
+        /// we pick is taken off that list before it runs - so a card can outlive the page
+        /// it belonged to and sit under the next one.
+        /// </summary>
+        private static void SweepStrandedCards()
+        {
+            var stranded = Object.FindObjectsOfType<SelectableCard>();
+            if (stranded == null || stranded.Length == 0) return;
+
+            foreach (SelectableCard card in stranded)
+                if (card != null) Object.Destroy(card.gameObject);
+
+            Trace.Info($"[deckui] cleared {stranded.Length} card(s) left over from the last page");
+        }
+
         private static IEnumerator CleanUpPicked(SelectableCard picked)
         {
             if (picked != null) Object.Destroy(picked.gameObject);

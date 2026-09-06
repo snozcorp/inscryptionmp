@@ -232,10 +232,8 @@ namespace InscryptionMP
 
                 var ability = (Ability)Enum.Parse(typeof(Ability), name);
 
-                // HasAbility, not a read of the mods we have applied: a sigil the card was
-                // printed with is already there, and adding it a second time gives it two
-                // of the same icon - which Act 2 answers by drawing none of them, because
-                // it keeps one icon layout per sigil count and runs off the end of the list.
+                // HasAbility, not just the mods we applied: re-adding a printed sigil
+                // doubles the icon, and Act 2 draws none at all past its layout list.
                 if (card.HasAbility(ability) || missing.Contains(ability)) continue;
                 missing.Add(ability);
             }

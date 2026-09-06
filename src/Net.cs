@@ -240,12 +240,9 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// Latch targets the peer has sent, in the order they were chosen.
-        ///
-        /// A queue rather than a keyed lookup: two latchers can die in the same combat, and
-        /// both clients resolve those deaths in the same order off the same board, so first
-        /// in is first out. Out-of-band for the same reason aims are - these arrive during
-        /// combat, when the opponent's turn loop is no longer draining the inbox.
+        /// Latch targets the peer has sent. A queue because two latchers can die in one
+        /// combat and both clients resolve them in the same order. Out-of-band like aims:
+        /// they arrive during combat, when nothing is draining the normal inbox.
         /// </summary>
         private static readonly ConcurrentQueue<string> Latches = new ConcurrentQueue<string>();
 
@@ -259,11 +256,7 @@ namespace InscryptionMP
             return Protocol.TryParseLatch(raw, out sendersOwnSide, out slotIndex);
         }
 
-        /// <summary>
-        /// Drops choices nobody consumed, for the same reason aims are dropped: a latcher
-        /// that dies without ever reaching its pre-death animation would leave its target
-        /// behind for the next one to pick up.
-        /// </summary>
+        /// <summary>Drops choices nobody consumed, so the next latcher can't inherit one.</summary>
         public static void ClearLatches()
         {
             int stale = Latches.Count;

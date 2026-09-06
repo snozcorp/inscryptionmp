@@ -188,12 +188,8 @@ namespace InscryptionMP
         public const string LatchPrefix = "LATCH ";
 
         /// <summary>
-        /// Which card a latcher fastened its sigil to, decided by the client that owns it.
-        ///
-        /// The same problem Sniper has: the owner picks by hand and the other client runs
-        /// an AI that picks differently, so the choice has to travel. The side is written
-        /// from the sender's point of view - P is their own half of the board - because the
-        /// receiver's halves are the other way round.
+        /// Which card a latcher latched onto, decided by whoever owns it. The side is from
+        /// the sender's point of view - P is their half - since the receiver's are flipped.
         /// </summary>
         public static string LatchTarget(bool sendersOwnSide, int slotIndex)
         {

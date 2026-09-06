@@ -9,24 +9,10 @@ using UnityEngine;
 namespace InscryptionMP
 {
     /// <summary>
-    /// Makes a latcher fasten its sigil to the same card on both screens.
+    /// Sends where a latcher latched, so both screens agree.
     ///
-    /// Latch.OnPreDeathAnimation branches on who owns the dying card:
-    ///
-    ///     if (base.Card.OpponentCard)  yield return AISelectTarget(...);
-    ///     else                         yield return ChooseTarget(...);
-    ///
-    /// which is the same trap Sniper sets. The player who owns the latcher picks a target
-    /// by hand; on the other screen that card is an opponent card, so their client runs the
-    /// AI and picks its own - and AIEvaluateTarget adds 1000 to a card whose side matches
-    /// the sigil's sign, so for a bomb it deliberately reaches for the *other* side of the
-    /// board. The two clients then disagree about which card is carrying the bomb, and once
-    /// it goes off they disagree about which cards are still alive.
-    ///
-    /// So the owner's choice travels, exactly like an aim: the client that made the choice
-    /// sends it, and the other applies it instead of guessing. If the peer never says - an
-    /// older build, or a crash mid-choice - the AI still runs, because a bomb on the wrong
-    /// card is better than a match frozen forever.
+    /// Latch.OnPreDeathAnimation asks the owner to pick but runs an AI for an opponent
+    /// card, so each client chose a different target. Same trap as Sniper, same fix.
     /// </summary>
     [HarmonyPatch]
     internal static class LatchSync
@@ -34,15 +20,12 @@ namespace InscryptionMP
         /// <summary>How long to wait for the peer's choice before letting the AI decide.</summary>
         private const float ChoiceTimeout = 30f;
 
-        /// <summary>
-        /// The latcher currently resolving its death, so the mod it applies can be traced
-        /// back to whose card it came from. One at a time: the trigger handler runs each
-        /// pre-death animation to completion before starting the next.
-        /// </summary>
+        /// <summary>The latcher resolving its death, to tell whose mod this is. One at a
+        /// time - the trigger handler finishes each pre-death animation before the next.</summary>
         private static PlayableCard _latcher;
 
-        /// <summary>Set while we call the vanilla AI back through reflection, which would
-        /// otherwise re-enter our own prefix and recurse forever.</summary>
+        /// <summary>Set while calling the vanilla AI by reflection, which would otherwise
+        /// re-enter our own prefix.</summary>
         private static bool _inFallback;
 
         private static readonly MethodInfo VanillaAi = AccessTools.Method(typeof(Latch), "AISelectTarget");
@@ -53,18 +36,13 @@ namespace InscryptionMP
         [HarmonyPrefix]
         private static void NoteWhoseLatcher(Latch __instance)
         {
-            // AbilityBehaviour.Card is protected, and is only GetComponent<PlayableCard>()
-            // behind the property - so ask the component directly rather than by reflection.
+            // AbilityBehaviour.Card is protected and is only GetComponent behind it.
             _latcher = __instance != null ? __instance.GetComponent<PlayableCard>() : null;
         }
 
         /// <summary>
-        /// Tells the peer which card we latched onto.
-        ///
-        /// fromLatch is the game's own marker on the modification, so this catches every
-        /// latcher - bomb, brittle and shield - without naming any of them. Only fires for
-        /// a latcher of ours: when it is theirs, we are the side doing the waiting, and
-        /// echoing their choice back would leave a message nobody consumes.
+        /// Tells the peer which card we latched onto. fromLatch is the game's own marker,
+        /// so this covers bomb, brittle and shield without naming any of them.
         /// </summary>
         [HarmonyPatch(typeof(PlayableCard), nameof(PlayableCard.AddTemporaryMod))]
         [HarmonyPostfix]
@@ -131,9 +109,7 @@ namespace InscryptionMP
 
             CardSlot target = Resolve(theirSide, index);
 
-            // Their board is authoritative for their side, but a slot we can't latch onto
-            // means the two boards have already drifted - and forcing it would put the
-            // sigil somewhere the game refuses to accept.
+            // A slot we can't latch onto means the boards have already drifted.
             if (target == null || target.Card == null || !validTargets.Contains(target))
             {
                 Trace.Warn($"[latch] peer latched onto a slot we can't use " +
@@ -148,10 +124,7 @@ namespace InscryptionMP
             yield return new WaitForSeconds(0.1f);
         }
 
-        /// <summary>
-        /// A slot index the peer sent, in our terms. Their own side of the board is our
-        /// opponent side, and the other way round.
-        /// </summary>
+        /// <summary>A slot the peer sent, in our terms: their side is our opponent side.</summary>
         private static CardSlot Resolve(bool sendersOwnSide, int index)
         {
             var board = Singleton<BoardManager>.Instance;

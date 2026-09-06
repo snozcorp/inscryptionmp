@@ -9,9 +9,9 @@
 #   InscryptionOnline-<v>-with-BepInEx.zip  the same, plus a BepInEx that works
 #   InscryptionOnline-thunderstore-<v>.zip  Thunderstore's layout, with a manifest
 #
-# The BepInEx payload is lifted from the previous with-BepInEx archive rather than
-# kept in the repo: it is 1.8 MB of somebody else's binaries and it has not changed
-# since 1.0.0.
+# The BepInEx payload is lifted from the previous with-BepInEx archive rather than kept
+# in the repo: it is 1.8 MB of somebody else's binaries and has not changed since 1.0.0.
+# The Thunderstore icon is ours, so that lives in tools/.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -50,11 +50,10 @@ sed "s/@VERSION@/$VERSION/g" tools/release-readme.txt > "$STAGE/plain/README.txt
 sed "s/@VERSION@/$VERSION/g" tools/manifest.json > "$STAGE/thunderstore/manifest.json"
 cp README.md "$STAGE/thunderstore/README.md"
 
-PREVIOUS="$(ls -1 dist/InscryptionOnline-*-with-BepInEx.zip 2>/dev/null | tail -1 || true)"
-[ -n "$PREVIOUS" ] || { echo "no previous with-BepInEx archive to take the icon and BepInEx from"; exit 1; }
+cp tools/icon.png "$STAGE/thunderstore/icon.png"
 
-PREV_TS="$(ls -1 dist/InscryptionOnline-thunderstore-*.zip 2>/dev/null | tail -1)"
-unzip -o -q "$PREV_TS" icon.png -d "$STAGE/thunderstore"
+PREVIOUS="$(ls -1 dist/InscryptionOnline-*-with-BepInEx.zip 2>/dev/null | tail -1 || true)"
+[ -n "$PREVIOUS" ] || { echo "no previous with-BepInEx archive to take BepInEx from"; exit 1; }
 
 # ------------------------------------------------------------------ with BepInEx
 mkdir -p "$STAGE/bundled"

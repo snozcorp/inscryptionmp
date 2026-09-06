@@ -62,6 +62,8 @@ namespace InscryptionMP
         {
             try
             {
+                if (!IsTitleScreen(controller)) return;
+
                 var cards = AccessTools.Field(typeof(MenuController), "cards")
                                        ?.GetValue(controller) as List<MenuCard>;
                 if (cards == null || cards.Count == 0)
@@ -72,6 +74,9 @@ namespace InscryptionMP
 
                 // Already there - the menu can be rebuilt without the scene reloading.
                 if (cards.Exists(c => c != null && c.name == CardName)) return;
+
+                DropHiddenAscensionCard(cards);
+                Trace.Info("[menucard] row: " + Describe(cards));
 
                 MenuCard template = PickTemplate(cards);
                 if (template == null) return;
@@ -96,13 +101,105 @@ namespace InscryptionMP
                 cards.Add(clone);
                 _card = clone;
                 CentreRow(cards);
-                Trace.Info("[menucard] added the multiplayer card to the title screen");
+                Trace.Info("[menucard] added the multiplayer card at x=" + spot.x.ToString("0.00"));
             }
             catch (System.Exception e)
             {
                 // A missing card is a shame; a broken title screen is unplayable.
                 Trace.Error($"[menucard] could not add the card: {e.Message}");
             }
+        }
+
+        /// <summary>
+        /// Whether this controller is the title screen rather than the in-game pause menu.
+        ///
+        /// Both are the same class - PauseMenu owns a MenuController of its own and fills
+        /// it with Concede, Options and the rest - so patching MenuController put our card
+        /// into the pause menu too, sitting on top of the card already there. PauseMenu
+        /// holds a reference to its own controller, which identifies it exactly, and
+        /// GBCPauseMenu inherits from it so Act 2 is covered by the same test.
+        /// </summary>
+        private static bool IsTitleScreen(MenuController controller)
+        {
+            PauseMenu pause = PauseMenu.instance;
+            if (pause != null)
+            {
+                var owned = AccessTools.Field(typeof(PauseMenu), "menuController")
+                                       ?.GetValue(pause) as MenuController;
+                if (owned != null && owned == controller)
+                {
+                    Trace.Info("[menucard] that controller is the pause menu - leaving it alone");
+                    return false;
+                }
+            }
+
+            // Belt and braces for the moment before PauseMenu.Awake has run: no title
+            // screen offers to concede a run or to return to itself.
+            var cards = AccessTools.Field(typeof(MenuController), "cards")
+                                   ?.GetValue(controller) as List<MenuCard>;
+            if (cards != null && cards.Exists(c => c != null &&
+                    (c.MenuAction == MenuAction.Concede ||
+                     c.MenuAction == MenuAction.ReturnToStartMenu)))
+            {
+                Trace.Info("[menucard] that row concedes or exits a run - not the title screen");
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Drops the Kaycee's Mod card when it isn't unlocked, before we measure the row.
+        ///
+        /// TweenInCards removes it itself - but our prefix runs first, so we were laying
+        /// out around a card that was about to vanish. That is what put our card on top of
+        /// Exit Game for everyone without the mod unlocked. Removing it ourselves is what
+        /// the vanilla method does a moment later, so nothing else changes.
+        /// </summary>
+        private static void DropHiddenAscensionCard(List<MenuCard> cards)
+        {
+            if (StoryEventsData.EventCompleted(StoryEvent.ChapterSelectUnlocked)) return;
+
+            int gone = cards.RemoveAll(c => c != null && c.MenuAction == MenuAction.EnterAscension);
+            if (gone > 0) Trace.Info("[menucard] ignoring " + gone + " locked ascension card(s)");
+        }
+
+        private static string Describe(List<MenuCard> cards)
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (MenuCard c in cards)
+            {
+                if (c == null) continue;
+                sb.Append(c.MenuAction).Append("@")
+                  .Append(c.transform.localPosition.x.ToString("0.00")).Append(" ");
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// The gap between neighbouring cards in the row.
+        ///
+        /// The smallest real gap, not the average across the row: averaging assumes the
+        /// cards are evenly spread, and one card sitting apart from the rest - or two
+        /// sharing a position - stretched the answer until ours landed on top of a
+        /// neighbour instead of past it.
+        /// </summary>
+        private static float RowPitch(List<MenuCard> cards)
+        {
+            var xs = new List<float>();
+            foreach (MenuCard c in cards)
+                if (c != null) xs.Add(c.transform.localPosition.x);
+
+            xs.Sort();
+
+            float pitch = float.MaxValue;
+            for (int i = 1; i < xs.Count; i++)
+            {
+                float gap = xs[i] - xs[i - 1];
+                if (gap > 0.05f && gap < pitch) pitch = gap;
+            }
+
+            return pitch == float.MaxValue ? 1.2f : pitch;
         }
 
         /// <summary>
@@ -132,24 +229,19 @@ namespace InscryptionMP
         private static Vector3 NextPosition(List<MenuCard> cards)
         {
             MenuCard rightmost = null;
-            float minX = float.MaxValue, maxX = float.MinValue;
+            float maxX = float.MinValue;
 
             foreach (MenuCard c in cards)
             {
                 if (c == null) continue;
                 float x = c.transform.localPosition.x;
-                if (x < minX) minX = x;
                 if (x > maxX) { maxX = x; rightmost = c; }
             }
 
             if (rightmost == null) return Vector3.zero;
 
-            // Average gap across the row, so we match whatever spacing this menu uses.
-            float spacing = cards.Count > 1 ? (maxX - minX) / (cards.Count - 1) : 0f;
-            if (spacing < 0.05f) spacing = 1.2f;
-
             Vector3 pos = rightmost.transform.localPosition;
-            return new Vector3(pos.x + spacing, pos.y, pos.z);
+            return new Vector3(pos.x + RowPitch(cards), pos.y, pos.z);
         }
 
         /// <summary>
@@ -220,21 +312,9 @@ namespace InscryptionMP
         /// </summary>
         private static void CentreRow(List<MenuCard> cards)
         {
-            int counted = 0;
-            float minX = float.MaxValue, maxX = float.MinValue;
+            if (cards.Count < 2) return;
 
-            foreach (MenuCard c in cards)
-            {
-                if (c == null) continue;
-                float x = c.transform.localPosition.x;
-                if (x < minX) minX = x;
-                if (x > maxX) maxX = x;
-                counted++;
-            }
-            if (counted < 2) return;
-
-            float spacing = (maxX - minX) / (counted - 1);
-            float shift = -spacing * 0.5f;
+            float shift = -RowPitch(cards) * 0.5f;
 
             foreach (MenuCard c in cards)
             {

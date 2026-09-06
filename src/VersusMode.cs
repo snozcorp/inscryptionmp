@@ -150,6 +150,10 @@ namespace InscryptionMP
                 save.ResetPart1Run();          // fresh run + starter deck, in memory only
                 save.currentScene = ActInfo.SceneFor(act);
 
+                // A fresh run is handed the campaign's starting consumables, and none of
+                // them belong in a match - see NoItems for what they do to one.
+                NoItems.StripFrom(save.currentRun);
+
                 // Act 3 keeps its own save data - map areas, world position, bounty. Its
                 // scene is an explorable holo world, and without this it comes up holding
                 // Act 1 state and tries to put the player back on the map.

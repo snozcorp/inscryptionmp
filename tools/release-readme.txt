@@ -33,10 +33,10 @@ DECK
   Add Sigils or Delete Card. 6-20 cards, each player brings their own.
 
 SIGILS
-  Up to two extra sigils on any card in your deck, chosen from what the
-  game itself considers graftable - Leshy's totem set in Acts 1 and 2,
-  P03's builder set in Act 3. The picker shows the card wearing each
-  sigil, so you choose by looking rather than by reading a list.
+  Put extra sigils on any card in your deck, chosen from what the game
+  itself considers graftable - Leshy's totem set in Acts 1 and 2, P03's
+  builder set in Act 3. A card shows two in total, its own included. The
+  picker shows the card wearing each sigil, so you choose by looking.
 
   Each act has its own deck, holding the cards that act can draw and pay
   for. Act 2 and Act 3 cards are browsed on Act 1's table, so their pixel

@@ -152,8 +152,8 @@ one side would load Act 1's cabin while the other loaded Act 3's board.
 - [x] A multiplayer card on the title screen
 
 ## Known gaps / next
-- **Acts 2 and 3 have only been played against the scripted peer**, not two real clients.
-  Act 1 is the one verified across two machines.
+- Acts 2 and 3 have now been played between two real clients, but with far fewer hours on
+  them than Act 1.
 - **A modified client is trusted.** Each client is authoritative over its own board, which
   is inherent to a peer-to-peer design without a referee. Play with people you trust.
 - Sigils a card gains beyond what the act can lay out are clamped for display; Act 2 keeps

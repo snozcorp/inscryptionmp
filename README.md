@@ -28,7 +28,7 @@ over the network, against another person.
   sigils it has picked up — so a buffed or damaged card reads the same on both screens.
 - **Deck builder** using the game's own 3D card table, paged, persisted to disk — one
   deck per act, each restricted to cards that act can actually draw and pay for.
-- **Sigils on your own cards.** Put up to two extra sigils on any card in your deck. The
+- **Sigils on your own cards.** Put extra sigils on any card in your deck. The
   picker shows that card wearing each sigil, so you choose by looking at cards rather than
   reading a list, and only sigils the act can actually draw are offered.
 - **A multiplayer card on the title screen** — drag it into the slot to open the menu,
@@ -78,10 +78,11 @@ card selects it — the bar then offers **Add Sigils** or **Delete Card**. Decks
 cards, stored per act in `BepInEx/config/inscryptionmp-deck-act1.txt` (and `-act2`,
 `-act3`), one card per line as `CardName` or `CardName:Sigil,Sigil`.
 
-**Sigils.** Up to two per card, chosen from what the game itself considers graftable —
-Act 1 and 2 offer Leshy's totem set, Act 3 offers P03's. Two is the engine's limit rather
-than a balance decision: Act 2 keeps one icon layout per sigil count and a card carrying
-more than the layouts cover draws none at all.
+**Sigils.** A card may show two in total, its own included — a card printed with one
+takes one more. Chosen from what the game itself considers graftable: Act 1 and 2 offer
+Leshy's totem set, Act 3 offers P03's. Two is the engine's limit rather than a balance
+decision — Act 2 keeps one icon layout per sigil count, and a card carrying more than the
+layouts cover draws none at all.
 
 Each act offers the cards that belong to it: Leshy's creatures in Act 1, all four
 scrybes in Act 2's GBC game, P03's machines in Act 3. Cards an act can't pay for are
@@ -123,8 +124,8 @@ ones worth knowing before you write an Inscryption mod of your own.
 
 ## Not done
 
-- Acts 2 and 3 have been played end to end, but against a scripted test client rather
-  than two real ones. Act 1 is the one verified across two machines and two Steam accounts.
+- All three acts have been played across two machines and two Steam accounts. Act 1 has
+  the most hours on it by a wide margin.
 - Each client is authoritative over its own board, which is inherent to peer-to-peer with
   no referee. Play with people you trust.
 - **No consumable items.** The Pliers, the Dagger and the rest deal damage straight to

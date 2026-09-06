@@ -282,6 +282,12 @@ namespace InscryptionMP
 
             _countLabel = new GUIStyle(_pageLabel) { alignment = TextAnchor.MiddleRight };
 
+            // GUI.skin.label wraps by default, so a box even slightly too narrow keeps the
+            // first word and drops the rest - "deck 8/20" rendered as "deck". These are all
+            // one-liners, so none of them should ever wrap.
+            foreach (GUIStyle st in new[] { _countLabel, _pageLabel, _section, _chipState, _chipInfo })
+                st.wordWrap = false;
+
             _warn = new GUIStyle(_small) { normal = { textColor = Rust } };
             _good = new GUIStyle(_small) { normal = { textColor = Gold } };
             _busy = new GUIStyle(_small) { normal = { textColor = BoneDim } };
@@ -740,7 +746,44 @@ namespace InscryptionMP
             }
 
             GUILayout.Space(Section);
+            DrawDeckSection();
+
+            GUILayout.Space(Section);
             DrawDirectSection();
+        }
+
+        /// <summary>
+        /// Picking an act and building its deck. On both screens because none of it needs a
+        /// peer - it was only reachable once connected, so you couldn't build a deck until
+        /// someone was waiting on you.
+        /// </summary>
+        private void DrawDeckSection()
+        {
+            GUILayout.Space(Section);
+            GUILayout.Label("ACT", _section);
+            GUILayout.BeginHorizontal();
+            foreach (MatchAct act in new[] { MatchAct.Act1, MatchAct.Act2, MatchAct.Act3 })
+            {
+                if (act != MatchAct.Act1) GUILayout.Space(8f);
+                bool chosen = ActInfo.Selected == act;
+                if (GUILayout.Button(ActInfo.Name(act), chosen ? _primary : _button, GUILayout.Height(38f)))
+                {
+                    ActInfo.Selected = act;
+                    SteamTransport.PublishSelectedAct();   // keep a hosted lobby honest
+                }
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(Gap);
+            if (GUILayout.Button("Edit " + ActInfo.Name(ActInfo.Selected) + " deck   ("
+                                 + DeckStore.Deck.Count + "/" + DeckStore.MaxCards + ")",
+                                 _button, GUILayout.Height(38f)))
+                OpenCardView();
+
+            if (!DeckStore.IsValid)
+                GUILayout.Label("Deck needs " + DeckStore.MinCards + "-" + DeckStore.MaxCards + " cards.", _warn);
+            if (NativeDeckBuilder.LastError != null)
+                GUILayout.Label(NativeDeckBuilder.LastError, _warn);
         }
 
         /// <summary>
@@ -797,31 +840,7 @@ namespace InscryptionMP
                 GUILayout.Label("Last match: " + VersusMode.LastResult, _resultText);
             }
 
-            GUILayout.Space(Section);
-            GUILayout.Label("ACT", _section);
-            GUILayout.BeginHorizontal();
-            foreach (MatchAct act in new[] { MatchAct.Act1, MatchAct.Act2, MatchAct.Act3 })
-            {
-                if (act != MatchAct.Act1) GUILayout.Space(8f);
-                bool selected = ActInfo.Selected == act;
-                if (GUILayout.Button(ActInfo.Name(act), selected ? _primary : _button, GUILayout.Height(38f)))
-                {
-                    ActInfo.Selected = act;
-                    SteamTransport.PublishSelectedAct();   // keep a hosted lobby honest
-                }
-            }
-            GUILayout.EndHorizontal();
-
-            GUILayout.Space(Gap);
-            if (GUILayout.Button("Edit " + ActInfo.Name(ActInfo.Selected) + " deck   ("
-                                 + DeckStore.Deck.Count + "/" + DeckStore.MaxCards + ")",
-                                 _button, GUILayout.Height(38f)))
-                OpenCardView();
-
-            if (!DeckStore.IsValid)
-                GUILayout.Label("Deck needs " + DeckStore.MinCards + "-" + DeckStore.MaxCards + " cards.", _warn);
-            if (NativeDeckBuilder.LastError != null)
-                GUILayout.Label(NativeDeckBuilder.LastError, _warn);
+            DrawDeckSection();
 
             GUILayout.Space(Section);
 

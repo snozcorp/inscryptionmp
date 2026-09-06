@@ -537,7 +537,7 @@ namespace InscryptionMP
                            : "CLICK A CARD TO CHOOSE IT";
 
             string counts = sigils
-                ? $"max {DeckStore.MaxAddedSigils} sigils"
+                ? NativeDeckBuilder.SigilBudget
                 : $"deck {DeckStore.Deck.Count}/{DeckStore.MaxCards}";
 
             const float w = 860f;

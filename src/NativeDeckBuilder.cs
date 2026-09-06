@@ -328,6 +328,25 @@ namespace InscryptionMP
             ExitSigilMode();
         }
 
+        /// <summary>Sigils the card is printed with, which count against the limit.</summary>
+        public static int PrintedSigils(string cardName)
+        {
+            CardInfo info = CardLoader.GetCardByName(cardName);
+            return info?.Abilities == null ? 0 : info.Abilities.Count;
+        }
+
+        /// <summary>What the card being edited is carrying, out of what it may.</summary>
+        public static string SigilBudget
+        {
+            get
+            {
+                if (!SigilMode || SigilTarget >= DeckStore.Deck.Count) return "";
+                string e = DeckStore.Deck[SigilTarget];
+                int total = PrintedSigils(DeckStore.BaseName(e)) + DeckStore.SigilsOf(e).Length;
+                return $"sigils {total}/{DeckStore.MaxAddedSigils}";
+            }
+        }
+
         /// <summary>Adds or removes one sigil on the card being edited.</summary>
         private static void ToggleSigil(Ability ability)
         {
@@ -343,10 +362,15 @@ namespace InscryptionMP
                 chosen.Remove(id);
                 Notice.Say($"{card}: removed {SigilPool.DisplayName(ability)}");
             }
-            else if (chosen.Count >= DeckStore.MaxAddedSigils)
+            else if (PrintedSigils(card) + chosen.Count >= DeckStore.MaxAddedSigils)
             {
-                // Two is what the game can draw; a third would be invisible in Act 2.
-                Notice.Bad($"{card} already has {DeckStore.MaxAddedSigils} sigils. Remove one first.");
+                // The limit is on what the card ends up wearing, not on what we added to
+                // it: Act 2 lays out two sigils and draws a card carrying more with none
+                // at all, so a sigil past the second is one nobody can see.
+                int printed = PrintedSigils(card);
+                Notice.Bad(printed > 0
+                    ? $"{card} already shows {printed + chosen.Count} sigils, {printed} of its own. Remove one first."
+                    : $"{card} already has {DeckStore.MaxAddedSigils} sigils. Remove one first.");
                 return;
             }
             else

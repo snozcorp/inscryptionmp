@@ -1,0 +1,9 @@
+{
+  "name": "InscryptionOnline",
+  "version_number": "@VERSION@",
+  "website_url": "https://github.com/snozcorp/inscryptionmp",
+  "description": "Player-versus-player multiplayer for Inscryption. All three acts, Steam lobbies, deck builder with sigils.",
+  "dependencies": [
+    "BepInEx-BepInExPack_Inscryption-5.4.2305"
+  ]
+}

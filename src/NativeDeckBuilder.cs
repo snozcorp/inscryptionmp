@@ -259,15 +259,21 @@ namespace InscryptionMP
                 }
                 else
                 {
-                    // A click selects; the bar says what can be done with it.
-                    int index = DeckStore.Deck.FindIndex(e => DeckStore.BaseName(e) == id);
-                    if (index >= 0)
+                    // Which entry, by where it sits on the page. Looking it up by name gave
+                    // the first copy every time, so with two of a card you could only ever
+                    // edit one of them - and it came up already wearing its two sigils.
+                    int slot = cards.FindIndex(c => ReferenceEquals(c, picked.Info));
+                    int index = slot >= 0 ? Page * PageSize + slot : -1;
+
+                    if (index >= 0 && index < DeckStore.Deck.Count)
                     {
                         SelectedEntry = index;
                         Notice.Say($"{id} selected - add sigils or delete it.");
                         yield return CleanUpPicked(picked);
                         continue;
                     }
+
+                    Trace.Warn($"[deckui] could not place the clicked {id} in the deck");
                 }
 
                 DeckStore.Save();
@@ -375,8 +381,10 @@ namespace InscryptionMP
                     CardInfo info = CardLoader.GetCardByName(DeckStore.BaseName(entry));
                     if (info == null) continue;
 
-                    string[] sigils = DeckStore.SigilsOf(entry);
-                    all.Add(sigils.Length > 0 ? Preview(info, sigils) : info);
+                    // Always a copy, even with no sigils on it. CardLoader hands out one
+                    // shared CardInfo per card, so two of the same card in a deck were the
+                    // same object and there was no way to tell which one was clicked.
+                    all.Add(Preview(info, DeckStore.SigilsOf(entry)));
                 }
             }
 

@@ -5,20 +5,13 @@ using HarmonyLib;
 namespace InscryptionMP
 {
     /// <summary>
-    /// Captures LOCAL player actions and puts them on the wire.
-    /// Peer cards land in opponent slots, so gating on IsPlayerSlot also prevents
-    /// echoing back a play we just received.
+    /// Captures LOCAL player actions and puts them on the wire. Peer cards land in opponent
+    /// slots, so gating on IsPlayerSlot also prevents echoing back a play we just received.
     /// </summary>
     [HarmonyPatch]
     internal static class Sync
     {
-        /// <summary>
-        /// Mirrors a local sacrifice to the peer as it happens.
-        ///
-        /// Without this the opponent only learns at the bell, via the board snapshot, and
-        /// the sacrificed cards simply blink out of existence - which reads as a glitch
-        /// rather than as the other player paying a cost.
-        /// </summary>
+        /// <summary>Mirrors a local sacrifice to the peer as it happens.</summary>
         [HarmonyPatch(typeof(PlayableCard), nameof(PlayableCard.Sacrifice))]
         [HarmonyPrefix]
         private static void OnLocalSacrifice(PlayableCard __instance)
@@ -68,11 +61,7 @@ namespace InscryptionMP
             return names;
         }
 
-        /// <summary>
-        /// Abilities this card has gained during the match. Temporary mods are where a
-        /// totem buff, a latch or an evolution lands, so they are exactly the difference
-        /// between our card and the same card on the peer's screen.
-        /// </summary>
+        /// <summary>Abilities this card has gained during the match.</summary>
         private static string[] GainedSigils(PlayableCard card)
         {
             var gained = new List<Ability>();

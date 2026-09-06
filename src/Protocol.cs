@@ -5,20 +5,13 @@ namespace InscryptionMP
     {
         public const string EndTurn = "END";
         /// <summary>
-        /// Bumped whenever the wire format changes. Two clients on different protocol
-        /// versions connect happily and then desync in confusing ways, so they refuse
-        /// each other up front instead.
+        /// Bumped whenever the wire format changes. Two clients on different protocol versions
+        /// connect happily and then desync in confusing ways, so they refuse each other up
+        /// front instead.
         /// </summary>
         public const int Version = 3;
 
-        /// <summary>
-        /// The oldest protocol we can still play against.
-        ///
-        /// Version 3 added stats and sigils to board snapshots and introduced AIM. None of
-        /// that is needed for a working match, so rather than refuse older peers we speak
-        /// their dialect and go without the extras. A player shouldn't be cut off from
-        /// everyone who hasn't updated yet.
-        /// </summary>
+        /// <summary>The oldest protocol we can still play against.</summary>
         public const int MinCompatible = 2;
 
         public const string HelloPrefix = "HELLO ";
@@ -68,11 +61,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// One slot in a board snapshot: which card, and the stats it is actually showing.
-        ///
-        /// Names alone were not enough. Both clients simulate combat locally on mirrored
-        /// boards and usually reach the same numbers, but nothing ever corrected them when
-        /// they didn't - a buffed or damaged card kept its own figures on each screen for
-        /// the rest of the match, because the reconcile saw a matching name and moved on.
         /// </summary>
         public struct SlotState
         {
@@ -82,8 +70,7 @@ namespace InscryptionMP
 
             /// <summary>
             /// Abilities the card has picked up during the match, beyond the ones its
-            /// definition ships with. Base abilities are identical on both clients because
-            /// both build the card from the same CardInfo, so only the gained ones travel.
+            /// definition ships with.
             /// </summary>
             public string[] Sigils;
 
@@ -155,11 +142,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// Which slots a Sniper card was aimed at, decided by the client that owns it.
-        ///
-        /// Every other attack in the game is deterministic - a card hits the slot opposite -
-        /// so both clients reach the same result independently. Sniper is the exception: it
-        /// is a free choice, and a choice cannot be guessed, so it has to travel.
-        /// Indices are in the sender's opponent-slot space, which is our player-slot space.
         /// </summary>
         public static string Aim(int attackerSlot, int[] targets)
         {

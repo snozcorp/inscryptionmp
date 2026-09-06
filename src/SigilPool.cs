@@ -6,14 +6,6 @@ namespace InscryptionMP
 {
     /// <summary>
     /// The sigils a player may put on a card, for the act they are building for.
-    ///
-    /// Not every sigil can be drawn in every act. Act 2 renders through
-    /// PixelCardAbilityIcons, which reads AbilityInfo.pixelIcon - a sigil without one draws
-    /// an empty space, and there is no artwork anywhere in the game to fall back on. Acts 1
-    /// and 3 use the 3D icon, with our own pixel-art fallback behind it.
-    ///
-    /// Offering a sigil that can't be seen would be worse than not offering it: both
-    /// players would have a card doing something with nothing on its face to say so.
     /// </summary>
     public static class SigilPool
     {
@@ -63,12 +55,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// Whether the game itself considers this sigil something you can put on a card.
-        ///
-        /// Every ability in the game includes boss powers, conduit plumbing and one-off
-        /// scripted effects, which is hundreds of entries and pages of nonsense to scroll.
-        /// The game already marks the ones meant to be grafted onto a card - Part1Modular
-        /// is what totems draw from, Part3BuildACard is P03's card builder - so use its
-        /// judgement rather than inventing our own list.
         /// </summary>
         private static bool CanBeGrafted(AbilityInfo info, MatchAct act)
         {

@@ -8,23 +8,13 @@ namespace InscryptionMP
 {
     /// <summary>
     /// The player's versus deck: a list of card names persisted beside the BepInEx config.
-    ///
-    /// Each player brings their own deck, exactly like a normal card game - decks are not
-    /// synchronised. The peer only ever needs to resolve a card *name*, which
-    /// CardLoader.GetCardByName already does, so no extra protocol is required.
     /// </summary>
     public static class DeckStore
     {
         public const int MinCards = 6;
         public const int MaxCards = 20;
 
-        /// <summary>
-        /// Sigils a player may add to one card.
-        ///
-        /// Two because that is what the game can draw. Act 2 keeps one prebuilt icon
-        /// layout per sigil count, and a card carrying more than the layouts cover renders
-        /// none at all - so the cap is the engine's, not a balance decision.
-        /// </summary>
+        /// <summary>Sigils a player may add to one card.</summary>
         public const int MaxAddedSigils = 2;
 
         private static readonly string[] NoSigils = new string[0];
@@ -74,15 +64,7 @@ namespace InscryptionMP
 
         private const int StarterSize = 10;
 
-        /// <summary>
-        /// A starting deck for an act the player hasn't built one for.
-        ///
-        /// Only Act 1 gets a hand-written list. The other acts draw theirs from their own
-        /// pool instead of hardcoded names: it can't reference a card that doesn't exist,
-        /// and every pick is legal on that act's table by construction. Act 1's names
-        /// happen to be legal in Act 2 as well, so without this an Act 2 deck silently
-        /// started out as squirrels and wolves.
-        /// </summary>
+        /// <summary>A starting deck for an act the player hasn't built one for.</summary>
         private static List<string> StarterFor(MatchAct act)
         {
             if (act == MatchAct.Act1) return new List<string>(Act1Starter);
@@ -252,9 +234,9 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// Every Act 1 card a player could normally be offered, rares included, and
-        /// regardless of campaign progression - a versus deck shouldn't be gated behind
-        /// someone's single-player unlocks.
+        /// Every Act 1 card a player could normally be offered, rares included, and regardless
+        /// of campaign progression - a versus deck shouldn't be gated behind someone's single-
+        /// player unlocks.
         /// </summary>
         public static List<CardInfo> Pool
         {
@@ -284,21 +266,10 @@ namespace InscryptionMP
             }
         }
 
+        /// <summary>Whether a card can be drawn and paid for on the Act 1 table.</summary>
         /// <summary>
-        /// Whether a card can be drawn and paid for on the Act 1 table.
-        ///
-        /// Other acts' cards are excluded on purpose. Making them look right here needs
-        /// portraits, cost sprites and sigil icons this table doesn't have - each one
-        /// patched reveals the next. The answer is to run the match in the act's own
-        /// scene, which is what per-act matches will do.
-        /// </summary>
-        /// <summary>
-        /// Whether a card is legal in a deck for the selected act - it belongs to that
-        /// act's table and can be drawn and paid for there.
-        ///
-        /// Deliberately looser than <see cref="IsOfferedInPool"/>. Squirrels and other
-        /// starter cards are never offered at choice nodes but are perfectly playable, and
-        /// conflating the two once pruned them out of a saved deck.
+        /// Whether a card is legal in a deck for the selected act - it belongs to that act's
+        /// table and can be drawn and paid for there.
         /// </summary>
         internal static bool CanUseInDeck(CardInfo c)
         {

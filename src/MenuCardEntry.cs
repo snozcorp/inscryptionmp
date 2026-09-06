@@ -8,15 +8,6 @@ namespace InscryptionMP
 {
     /// <summary>
     /// Adds a MULTIPLAYER card to the title screen, alongside New Game and the rest.
-    ///
-    /// The start menu really is cards dropped into a slot - MenuCard, MenuSlot and a
-    /// MenuAction switch - so the mod can live there as one more card rather than as an
-    /// overlay bolted on top. Drag it into the slot and the versus panel opens.
-    ///
-    /// The card is cloned from one the scene already has, so it inherits the art, border,
-    /// animation and collider without us shipping any assets. Its title is left as text:
-    /// MenuController falls back to rendering TitleText when a card has no title sprite,
-    /// in the game's own font, which is why this needs no hand-drawn word art.
     /// </summary>
     [HarmonyPatch]
     internal static class MenuCardEntry
@@ -34,12 +25,7 @@ namespace InscryptionMP
             __instance.StartCoroutine(AddCardWhenReady(__instance));
         }
 
-        /// <summary>
-        /// The reliable hook. Start fires once when the scene object wakes, which may be
-        /// before the card list is populated or may already have happened; TweenInCards
-        /// runs every time the menu is actually presented, which is exactly when the card
-        /// needs to exist. Adding it here also means it animates in with the others.
-        /// </summary>
+        /// <summary>The reliable hook.</summary>
         [HarmonyPatch(typeof(MenuController), nameof(MenuController.TweenInCards))]
         [HarmonyPrefix]
         private static void AddBeforeTween(MenuController __instance)
@@ -112,12 +98,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// Whether this controller is the title screen rather than the in-game pause menu.
-        ///
-        /// Both are the same class - PauseMenu owns a MenuController of its own and fills
-        /// it with Concede, Options and the rest - so patching MenuController put our card
-        /// into the pause menu too, sitting on top of the card already there. PauseMenu
-        /// holds a reference to its own controller, which identifies it exactly, and
-        /// GBCPauseMenu inherits from it so Act 2 is covered by the same test.
         /// </summary>
         private static bool IsTitleScreen(MenuController controller)
         {
@@ -150,11 +130,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// Drops the Kaycee's Mod card when it isn't unlocked, before we measure the row.
-        ///
-        /// TweenInCards removes it itself - but our prefix runs first, so we were laying
-        /// out around a card that was about to vanish. That is what put our card on top of
-        /// Exit Game for everyone without the mod unlocked. Removing it ourselves is what
-        /// the vanilla method does a moment later, so nothing else changes.
         /// </summary>
         private static void DropHiddenAscensionCard(List<MenuCard> cards)
         {
@@ -176,14 +151,7 @@ namespace InscryptionMP
             return sb.ToString();
         }
 
-        /// <summary>
-        /// The gap between neighbouring cards in the row.
-        ///
-        /// The smallest real gap, not the average across the row: averaging assumes the
-        /// cards are evenly spread, and one card sitting apart from the rest - or two
-        /// sharing a position - stretched the answer until ours landed on top of a
-        /// neighbour instead of past it.
-        /// </summary>
+        /// <summary>The gap between neighbouring cards in the row.</summary>
         private static float RowPitch(List<MenuCard> cards)
         {
             var xs = new List<float>();
@@ -219,13 +187,7 @@ namespace InscryptionMP
             return best;
         }
 
-        /// <summary>
-        /// Places the card past the right-hand end of the row.
-        ///
-        /// Taking the step between the last two entries of the list was wrong: the list is
-        /// not in left-to-right order, so on a menu with Kaycee's Mod in it the card landed
-        /// on top of Options. Reading the actual positions is order-independent.
-        /// </summary>
+        /// <summary>Places the card past the right-hand end of the row.</summary>
         private static Vector3 NextPosition(List<MenuCard> cards)
         {
             MenuCard rightmost = null;
@@ -261,12 +223,8 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// Marks the card out from the row. Every menu card shares the same face art and
-        /// only shows its title on hover, so without this ours is indistinguishable.
-        ///
-        /// Sets the stored default as well as the live colour: unslotting a card calls
-        /// ResetBorderColor, so tinting only the renderer would wash out the first time
-        /// anyone picked it up.
+        /// Marks the card out from the row. Every menu card shares the same face art and only
+        /// shows its title on hover, so without this ours is indistinguishable.
         /// </summary>
         private static void TintBorder(MenuCard card, Color c)
         {
@@ -276,11 +234,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// Warms the card face so it isn't an exact copy of the one it was cloned from.
-        ///
-        /// Every menu card shares the same art and only shows its title on hover, so a
-        /// straight clone is indistinguishable from Options sitting next to it. Tinting
-        /// the face rather than swapping the sprite keeps the frame, wear and lighting
-        /// the scene already gives it.
         /// </summary>
         private static void TintFace(MenuCard card, Color tint)
         {
@@ -300,16 +253,7 @@ namespace InscryptionMP
             Trace.Info($"[menucard] renderers: {seen}");
         }
 
-        /// <summary>
-        /// Slides the whole row back so it stays centred.
-        ///
-        /// Our card is added past the right-hand end, which pushes the row off-centre by
-        /// half a slot. Every card moves by the same amount, so the spacing the scene was
-        /// authored with is untouched.
-        ///
-        /// StartPosition moves too: it is where the menu returns cards to, so shifting only
-        /// the transform would let them drift back the moment anything reset them.
-        /// </summary>
+        /// <summary>Slides the whole row back so it stays centred.</summary>
         private static void CentreRow(List<MenuCard> cards)
         {
             if (cards.Count < 2) return;
@@ -330,11 +274,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// Puts a face on the card that no other card on this screen is wearing.
-        ///
-        /// MenuAction covers screens beyond the title - Library, EditDeck, Concede, EndRun -
-        /// and their card art is loaded even though the title screen never shows it. Using
-        /// one of those keeps the card hand-drawn and in-style rather than recoloured, and
-        /// costs us no assets.
         /// </summary>
         private static void GiveDistinctArt(MenuCard clone, List<MenuCard> cards)
         {
@@ -399,16 +338,8 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// Opens the versus panel instead of running a menu action, then hands the menu
-        /// back to the player.
-        ///
-        /// Skipping the vanilla method outright left the menu stuck: it is what clears
-        /// DoingCardTransition, and while that flag is set the controller ignores every
-        /// input, so the card could not be taken out and no other card could go in. The
-        /// housekeeping has to happen even though the action doesn't.
-        ///
-        /// Our card carries whatever MenuAction it was cloned from, so it is identified by
-        /// instance - letting the vanilla switch see it would open Options.
+        /// Opens the versus panel instead of running a menu action, then hands the menu back to
+        /// the player.
         /// </summary>
         [HarmonyPatch(typeof(MenuController), "OnCardReachedSlot")]
         [HarmonyPrefix]

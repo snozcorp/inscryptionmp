@@ -4,9 +4,9 @@ using System.IO;
 namespace InscryptionMP
 {
     /// <summary>
-    /// BepInEx's disk logger buffers, which makes it useless for watching a live
-    /// session from outside the game. This mirrors every message into
-    /// BepInEx/mp-trace.log with an immediate flush.
+    /// BepInEx's disk logger buffers, which makes it useless for watching a live session from
+    /// outside the game. This mirrors every message into BepInEx/mp-trace.log with an immediate
+    /// flush.
     /// </summary>
     internal static class Trace
     {

@@ -6,19 +6,7 @@ using UnityEngine;
 
 namespace InscryptionMP
 {
-    /// <summary>
-    /// Crash insurance for the card renderer.
-    ///
-    /// <c>GetCostSpriteForCard</c> indexes <c>boneCostTextures</c> and <c>costTextures</c>
-    /// with no bounds check, so a card costing more bones or blood than the current act's
-    /// sprite array covers throws IndexOutOfRangeException mid-render. The gem and energy
-    /// branches are already guarded and fall through safely; only these two throw.
-    ///
-    /// This does not try to make one act's cards look right on another act's table - that
-    /// approach needs portraits, cost sprites and sigil icons the table simply doesn't
-    /// have, and the answer there is to run the match in the act's own scene. This is only
-    /// here so an unexpected card degrades to an approximate icon instead of an exception.
-    /// </summary>
+    /// <summary>Crash insurance for the card renderer.</summary>
     [HarmonyPatch]
     internal static class CardRenderFallbacks
     {
@@ -30,17 +18,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// Gives Act 2 cards a portrait when they're shown on the 3D card table.
-        ///
-        /// The deck browser reuses Act 1's SelectableCardArray, which renders through
-        /// CardDisplayer3D and draws portraitTex. Act 2 cards carry pixelPortrait instead,
-        /// so GBC-only cards come up with a blank face while browsing - even though they
-        /// render correctly in an actual Act 2 match, where PixelCardDisplayer reads the
-        /// pixel art directly.
-        ///
-        /// A pixel portrait is a ~41x28 sprite sized for the GBC frame, so assigning it
-        /// straight across renders a stamp in the middle of an empty slot. Rebuilding it
-        /// with a pixels-per-unit taken from a real 3D portrait makes it fill the space.
-        /// It stays blocky, which is honest - it is pixel art.
         /// </summary>
         [HarmonyPatch(typeof(Card), nameof(Card.SetInfo))]
         [HarmonyPrefix]
@@ -69,9 +46,9 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// Rescales a 3D portrait that is bigger than the slot the card gives it.
-        /// A little over is normal variation between portraits; well over means it will
-        /// draw on top of the card's own frame and stats.
+        /// Rescales a 3D portrait that is bigger than the slot the card gives it. A little over
+        /// is normal variation between portraits; well over means it will draw on top of the
+        /// card's own frame and stats.
         /// </summary>
         private static void ClampOversizedPortrait(CardInfo info)
         {
@@ -88,11 +65,7 @@ namespace InscryptionMP
             info.portraitTex = fitted;
         }
 
-        /// <summary>
-        /// Measures a normal 3D portrait so pixel art can be matched to it. Cards are
-        /// looked up by name because the browser may show an Act 2 card before any Act 1
-        /// one has rendered, leaving nothing to have learned from.
-        /// </summary>
+        /// <summary>Measures a normal 3D portrait so pixel art can be matched to it.</summary>
         private static void LearnReferenceSize()
         {
             foreach (string name in new[] { "Squirrel", "Stoat", "Wolf", "Bullfrog" })
@@ -144,15 +117,7 @@ namespace InscryptionMP
         /// <summary>Textures baked from pixel sigils, keyed by the sprite they came from.</summary>
         private static readonly Dictionary<Sprite, Texture> BakedIcons = new Dictionary<Sprite, Texture>();
 
-        /// <summary>
-        /// Gives Act 2 sigils an icon on the 3D card table.
-        ///
-        /// AbilityIconInteractable resolves its icon by name out of the resource bank
-        /// ("ability_&lt;name&gt;"), and abilities that only exist in the GBC game have no
-        /// texture there - the lookup returns null and the icon quad renders as a solid
-        /// black square. The pixel sprite AbilityInfo carries is the same artwork the GBC
-        /// card would draw, so baking it into a texture fills the quad.
-        /// </summary>
+        /// <summary>Gives Act 2 sigils an icon on the 3D card table.</summary>
         [HarmonyPatch(typeof(AbilityIconInteractable), "LoadIcon")]
         [HarmonyPostfix]
         private static void SubstitutePixelSigil(AbilityInfo ability, ref Texture __result)
@@ -165,12 +130,7 @@ namespace InscryptionMP
             if (baked != null) __result = baked;
         }
 
-        /// <summary>
-        /// Copies one sprite out of its atlas into a standalone texture.
-        ///
-        /// Done through a RenderTexture blit rather than GetPixels because the source
-        /// atlas is not marked readable, and reading it directly throws.
-        /// </summary>
+        /// <summary>Copies one sprite out of its atlas into a standalone texture.</summary>
         private static Texture BakeSprite(Sprite source)
         {
             if (BakedIcons.TryGetValue(source, out Texture cached)) return cached;

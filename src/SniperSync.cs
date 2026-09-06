@@ -6,19 +6,7 @@ using UnityEngine;
 
 namespace InscryptionMP
 {
-    /// <summary>
-    /// Makes Sniper work when the card belongs to the other player.
-    ///
-    /// The engine's SlotAttackSequence asks the local player to aim any card with Sniper,
-    /// without checking whose card it is. In single player that is safe, because only the
-    /// player ever holds one - Leshy's cards don't have it. Over a network it means a
-    /// peer's Sniper card prompts *us* to aim it, and against the wrong side of the board.
-    ///
-    /// Sniper is also the only attack in the game that isn't deterministic. Everything else
-    /// hits the slot opposite, which is why both clients can resolve combat independently
-    /// and agree. A free choice can't be guessed, so the owning client makes it and sends
-    /// it; the other client applies it rather than asking.
-    /// </summary>
+    /// <summary>Makes Sniper work when the card belongs to the other player.</summary>
     [HarmonyPatch]
     internal static class SniperSync
     {
@@ -115,12 +103,7 @@ namespace InscryptionMP
             }
         }
 
-        /// <summary>
-        /// Waits for the owning client to say where it aimed.
-        ///
-        /// Falls back to the slot opposite if nothing arrives. A wrong target is a bad
-        /// outcome; a match frozen forever because a peer crashed mid-aim is a worse one.
-        /// </summary>
+        /// <summary>Waits for the owning client to say where it aimed.</summary>
         private static IEnumerator WaitForPeerAim(int attackerSlot, int numAttacks,
                                                   List<CardSlot> targetSide, List<CardSlot> chosen)
         {

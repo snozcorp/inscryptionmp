@@ -11,14 +11,7 @@ namespace InscryptionMP
         Act3 = 3,
     }
 
-    /// <summary>
-    /// Per-act facts the rest of the mod needs.
-    ///
-    /// The act determines far more than the card list: the scene brings its own card
-    /// renderer, resource UI, board and sigil icons. Trying to draw one act's cards on
-    /// another act's table means supplying art that table doesn't have, so a match is
-    /// played on the table the cards belong to.
-    /// </summary>
+    /// <summary>Per-act facts the rest of the mod needs.</summary>
     public static class ActInfo
     {
         /// <summary>The act currently selected for the next match.</summary>
@@ -37,11 +30,7 @@ namespace InscryptionMP
             }
         }
 
-        /// <summary>
-        /// Whether this act's table will host cards of a given temple. Act 1 is Leshy's
-        /// creatures and Act 3 is P03's machines, but Act 2 is the GBC game where all four
-        /// scrybes' cards appear together - so it accepts everything.
-        /// </summary>
+        /// <summary>Whether this act's table will host cards of a given temple.</summary>
         public static bool AcceptsTemple(MatchAct act, CardTemple temple)
         {
             switch (act)
@@ -53,26 +42,19 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// Act 2 renders through PixelCardDisplayer, which draws pixelPortrait rather than
-        /// the 3D portraitTex. A card with only one of the two is fine on the act that
-        /// uses it and blank on the other.
+        /// Act 2 renders through PixelCardDisplayer, which draws pixelPortrait rather than the
+        /// 3D portraitTex. A card with only one of the two is fine on the act that uses it and
+        /// blank on the other.
         /// </summary>
         public static bool UsesPixelArt(MatchAct act) => act == MatchAct.Act2;
 
-        /// <summary>
-        /// Whether this act's scene has a GameFlowManager.
-        ///
-        /// Act 1 and Act 3 are explorable scenes with a flow manager driving their game
-        /// states. GBC_CardBattle is a self-contained battle scene - the flow around it
-        /// lives in the overworld scene it is loaded from, so there is no flow manager
-        /// here at all and waiting for one waits forever.
-        /// </summary>
+        /// <summary>Whether this act's scene has a GameFlowManager.</summary>
         public static bool HasFlowManager(MatchAct act) => act != MatchAct.Act2;
 
         /// <summary>
-        /// Which board theme the GBC table should dress itself in. The theme is normally
-        /// chosen by the NPC being fought; with no NPC, follow whatever the player's own
-        /// deck is mostly made of.
+        /// Which board theme the GBC table should dress itself in. The theme is normally chosen
+        /// by the NPC being fought; with no NPC, follow whatever the player's own deck is
+        /// mostly made of.
         /// </summary>
         public static PixelBoardSpriteSetter.BoardTheme ThemeForTemple(CardTemple temple)
         {
@@ -95,9 +77,9 @@ namespace InscryptionMP
         public static bool GrantsGems(MatchAct act) => act == MatchAct.Act2;
 
         /// <summary>
-        /// The meta categories that mark a card as something this act would offer a
-        /// player. Each act uses its own: ChoiceNode is Act 1's, Act 3 uses Part3Random,
-        /// Act 2 uses the GBC ones. Testing only for ChoiceNode left other acts empty.
+        /// The meta categories that mark a card as something this act would offer a player.
+        /// Each act uses its own: ChoiceNode is Act 1's, Act 3 uses Part3Random, Act 2 uses the
+        /// GBC ones.
         /// </summary>
         public static CardMetaCategory[] OfferedCategories(MatchAct act)
         {

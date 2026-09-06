@@ -4,11 +4,6 @@ namespace InscryptionMP
 {
     /// <summary>
     /// Builds the multiplayer menu card's face from one the game already has.
-    ///
-    /// Drawing a card from nothing would mean matching the frame, the paper grain and the
-    /// wear that every other card on that row has, and it would look pasted on. Taking a
-    /// real card, darkening it to red and stamping VS in the middle keeps all of that and
-    /// still reads as its own card rather than a borrowed one.
     /// </summary>
     internal static class VersusCardArt
     {
@@ -55,12 +50,7 @@ namespace InscryptionMP
             }
         }
 
-        /// <summary>
-        /// Copies a sprite out of its atlas into a texture we can write to.
-        ///
-        /// Goes through a RenderTexture rather than GetPixels because the atlas isn't
-        /// marked readable and reading it directly throws.
-        /// </summary>
+        /// <summary>Copies a sprite out of its atlas into a texture we can write to.</summary>
         private static Texture2D CopyReadable(Sprite source)
         {
             RenderTexture previous = RenderTexture.active;
@@ -100,14 +90,7 @@ namespace InscryptionMP
             tex.SetPixels(px);
         }
 
-        /// <summary>
-        /// Wipes the borrowed illustration, keeping the card's frame.
-        ///
-        /// Tinting alone left Concede's picture showing through the red. Flattening the
-        /// middle gives a blank card that carries nothing but the VS, while the outer ring
-        /// keeps the border, corners and edge wear that make it look like one of the
-        /// game's cards rather than a rectangle.
-        /// </summary>
+        /// <summary>Wipes the borrowed illustration, keeping the card's frame.</summary>
         private static void ClearInterior(Texture2D tex)
         {
             int inset = Mathf.Max(2, tex.width / 12);

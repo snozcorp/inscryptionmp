@@ -8,12 +8,7 @@ using UnityEngine;
 
 namespace InscryptionMP
 {
-    /// <summary>
-    /// Sends where a latcher latched, so both screens agree.
-    ///
-    /// Latch.OnPreDeathAnimation asks the owner to pick but runs an AI for an opponent
-    /// card, so each client chose a different target. Same trap as Sniper, same fix.
-    /// </summary>
+    /// <summary>Sends where a latcher latched, so both screens agree.</summary>
     [HarmonyPatch]
     internal static class LatchSync
     {

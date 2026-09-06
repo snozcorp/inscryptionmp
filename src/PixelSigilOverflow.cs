@@ -6,22 +6,7 @@ using UnityEngine;
 
 namespace InscryptionMP
 {
-    /// <summary>
-    /// Stops an Act 2 card losing all of its sigils when it has too many.
-    ///
-    /// PixelCardAbilityIcons keeps one prebuilt icon layout per sigil count - one group for
-    /// a card with one sigil, another for two, and so on. It picks the group by index:
-    ///
-    ///     if (abilities.Count > 0 &amp;&amp; abilities.Count - 1 &lt; abilityIconGroups.Count)
-    ///
-    /// A card with more sigils than there are layouts fails that test, and the whole block
-    /// is skipped - so instead of dropping the extra icons it draws none at all. The card
-    /// silently loses every sigil it has.
-    ///
-    /// Vanilla never hits this because its own cards are authored within the limit. We can
-    /// exceed it: a card that gains a sigil mid-match, or one synced from a peer, adds to
-    /// whatever it already had. Showing as many as the layouts allow beats showing none.
-    /// </summary>
+    /// <summary>Stops an Act 2 card losing all of its sigils when it has too many.</summary>
     [HarmonyPatch]
     internal static class PixelSigilOverflow
     {

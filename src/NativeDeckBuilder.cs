@@ -6,15 +6,7 @@ using UnityEngine;
 
 namespace InscryptionMP
 {
-    /// <summary>
-    /// Deck building using the game's own 3D card view.
-    ///
-    /// Inscryption has no general UI toolkit, but it does have DeckReviewSequencer, which
-    /// lays real cards out on the table and lets you pick one. Reusing that gives us the
-    /// game's art, hover, zoom and inspection for free instead of an IMGUI list.
-    ///
-    /// Two modes: browsing the pool adds the card you pick, browsing your deck removes it.
-    /// </summary>
+    /// <summary>Deck building using the game's own 3D card view.</summary>
     internal static class NativeDeckBuilder
     {
         public static bool IsOpen { get; private set; }
@@ -22,22 +14,12 @@ namespace InscryptionMP
 
         /// <summary>
         /// Which deck entry is having its sigils chosen, or -1 when browsing normally.
-        ///
-        /// In this mode the array shows the same card once per available sigil, each with
-        /// that sigil applied - so you pick the card you want rather than a name from a
-        /// list, and see exactly what it will look like on the table.
         /// </summary>
         public static int SigilTarget { get; private set; } = -1;
 
         public static bool SigilMode => SigilTarget >= 0;
 
-        /// <summary>
-        /// The deck card you have clicked, or -1 for none.
-        ///
-        /// Clicking picks a card; the bar then offers what can be done with it. Making the
-        /// click itself mean "remove" or "edit sigils" depending on a mode meant you had to
-        /// know which mode you were in before touching anything.
-        /// </summary>
+        /// <summary>The deck card you have clicked, or -1 for none.</summary>
         public static int SelectedEntry { get; private set; } = -1;
 
         public static bool HasSelection => SelectedEntry >= 0 && SelectedEntry < DeckStore.Deck.Count;
@@ -320,13 +302,7 @@ namespace InscryptionMP
         }
 
         /// <summary>The current page of whichever list we're browsing.</summary>
-        /// <summary>
-        /// Destroys the card that was clicked.
-        ///
-        /// SelectCardFrom drops the picked card from its own cleanup list, because in the
-        /// campaign it animates away into your deck. Nothing else destroys it, so without
-        /// this every click leaves a card stranded on the table.
-        /// </summary>
+        /// <summary>Destroys the card that was clicked.</summary>
         private static IEnumerator CleanUpPicked(SelectableCard picked)
         {
             if (picked != null) Object.Destroy(picked.gameObject);
@@ -410,13 +386,7 @@ namespace InscryptionMP
             return all.GetRange(start, count);
         }
 
-        /// <summary>
-        /// The card being edited, once per sigil it could take.
-        ///
-        /// Every entry is the same card wearing a different sigil, so choosing is a matter
-        /// of looking at the cards rather than reading names - and what you see is what
-        /// ends up on the table.
-        /// </summary>
+        /// <summary>The card being edited, once per sigil it could take.</summary>
         private static List<CardInfo> BuildSigilPage()
         {
             var cards = new List<CardInfo>();
@@ -452,9 +422,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// A throwaway copy of a card carrying some sigils, purely to look at.
-        ///
-        /// Cloned because CardLoader hands out one shared CardInfo per card - adding
-        /// sigils to it would put them on that card everywhere in the game.
         /// </summary>
         private static CardInfo Preview(CardInfo info, string[] sigils)
         {

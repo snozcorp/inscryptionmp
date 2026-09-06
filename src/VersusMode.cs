@@ -7,15 +7,7 @@ using UnityEngine;
 
 namespace InscryptionMP
 {
-    /// <summary>
-    /// Starts a self-contained versus match.
-    ///
-    /// Deliberately does NOT go through CardBattleNodeData / EncounterBuilder: that path
-    /// needs a blueprint and ties the match to a map node, so a mid-match failure strands
-    /// the player on the map with input locked. We build an EncounterData ourselves and
-    /// call the public TurnManager.StartGame(EncounterData) overload, so a match consumes
-    /// no run progress and writes nothing to the save.
-    /// </summary>
+    /// <summary>Starts a self-contained versus match.</summary>
     internal static class VersusMode
     {
         public static bool InMatch { get; private set; }
@@ -27,9 +19,8 @@ namespace InscryptionMP
         private static string ActScene => ActInfo.SceneFor(ActInfo.Current);
 
         /// <summary>
-        /// The scene the deck browser runs in - always Act 1's cabin, whichever act's deck
-        /// is being edited. The browser is built on SelectableCardArray, which only exists
-        /// on the 3D table; other acts' cards are shown there via CardRenderFallbacks.
+        /// The scene the deck browser runs in - always Act 1's cabin, whichever act's deck is
+        /// being edited.
         /// </summary>
         private static string DeckTableScene => ActInfo.SceneFor(MatchAct.Act1);
 
@@ -57,9 +48,9 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// Both clients run their own battle, so a match only works if both start one.
-        /// A locally initiated start tells the peer to start too; a peer-initiated start
-        /// must not echo back.
+        /// Both clients run their own battle, so a match only works if both start one. A
+        /// locally initiated start tells the peer to start too; a peer-initiated start must not
+        /// echo back.
         /// </summary>
         public static void StartAnywhere(MonoBehaviour host, bool tellPeer)
         {
@@ -110,14 +101,7 @@ namespace InscryptionMP
             LoadingScreenManager.LoadScene(ActScene);
         }
 
-        /// <summary>
-        /// Gives the match a valid, self-contained Act 1 run to sit inside.
-        ///
-        /// Part1_Cabin expects a run to exist - a player with no save, or one who has
-        /// never started Act 1, previously got a broken scene. We synthesise a fresh run
-        /// instead of borrowing theirs, and stash whatever was there so the campaign is
-        /// untouched. Saving is disabled throughout, so none of this reaches disk.
-        /// </summary>
+        /// <summary>Gives the match a valid, self-contained Act 1 run to sit inside.</summary>
         private static void PrepareIsolatedRun(MatchAct act)
         {
             try
@@ -184,10 +168,8 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// The player's own save state, held while a match or the deck table borrows the
-        /// save file. A flag rather than a null check on the run: a player who has never
-        /// started a run legitimately has none, and testing for null left them with our
-        /// synthetic one.
+        /// The player's own save state, held while a match or the deck table borrows the save
+        /// file.
         /// </summary>
         private static bool _stashed;
         private static RunState _stashedRun;
@@ -231,20 +213,20 @@ namespace InscryptionMP
 
         /// <summary>
         /// Loads the Act 1 table without starting a match, so the native card view has
-        /// somewhere to lay cards out. Uses the same isolated run as a match, so the
-        /// player's campaign is untouched.
+        /// somewhere to lay cards out. Uses the same isolated run as a match, so the player's
+        /// campaign is untouched.
         /// </summary>
         /// <summary>
-        /// True when we loaded the Act 1 scene purely to host the deck card view, so
-        /// closing that view should return to the title rather than stranding the player
-        /// at an empty table. False if they were already in the scene themselves.
+        /// True when we loaded the Act 1 scene purely to host the deck card view, so closing
+        /// that view should return to the title rather than stranding the player at an empty
+        /// table.
         /// </summary>
         public static bool LoadedTableForDeck { get; private set; }
 
         /// <summary>
-        /// True whenever the mod is driving the scene rather than the campaign - a match,
-        /// a match about to start, or the deck table. Used by patches that should only
-        /// change the game's behaviour for versus play.
+        /// True whenever the mod is driving the scene rather than the campaign - a match, a
+        /// match about to start, or the deck table. Used by patches that should only change the
+        /// game's behaviour for versus play.
         /// </summary>
         public static bool VersusContext => InMatch || PendingStart || LoadedTableForDeck;
 
@@ -365,11 +347,9 @@ namespace InscryptionMP
             {
                 Trace.Info($"[versus] {ActInfo.Name(ActInfo.Current)}: using the plain battle transition");
 
-                // Part 3's scene init both hides its holo map and then transitions to the
-                // map state. We block that method to stop the transition, which also skips
-                // the hide - so the map stays sitting on top of the board. Do the hide
-                // ourselves. HideMapImmediate is what Part 3 itself calls; the animated
-                // HideMapSequence throws on a HoloGameMap.
+                // Part 3's scene init both hides its holo map and then transitions to the map
+                // state. We block that method to stop the transition, which also skips the hide
+                // - so the map stays sitting on top of the board.
                 var holoMap = Singleton<GameMap>.Instance;
                 if (holoMap != null)
                 {
@@ -411,9 +391,8 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// Applies the parts of the GBC battle setup that normally come from the NPC you
-        /// walked into. Without a theme the board keeps its unset placeholder sprites, and
-        /// the cursor stays hidden because nothing ever unhid it.
+        /// Applies the parts of the GBC battle setup that normally come from the NPC you walked
+        /// into.
         /// </summary>
         private static void DressGbcTable()
         {
@@ -476,11 +455,7 @@ namespace InscryptionMP
         public static float SuspendedSecondsLeft =>
             Mathf.Max(0f, ReconnectWindowSeconds - (Time.realtimeSinceStartup - _suspendedAt));
 
-        /// <summary>
-        /// Called when the peer vanishes mid-match. Turn ownership is local state that only
-        /// changes on a bell or an END, neither of which can happen while disconnected - so
-        /// it survives the drop untouched and only the boards need resyncing on return.
-        /// </summary>
+        /// <summary>Called when the peer vanishes mid-match.</summary>
         public static void NoteDisconnected()
         {
             if (!InMatch || Suspended) return;

@@ -8,9 +8,8 @@ using System.Threading;
 namespace InscryptionMP
 {
     /// <summary>
-    /// Dead-simple newline-delimited TCP transport.
-    /// Turn-based game: latency is irrelevant, ordering is guaranteed, TCP is correct.
-    /// All socket work happens off the Unity main thread; messages are drained via TryDequeue.
+    /// Dead-simple newline-delimited TCP transport. Turn-based game: latency is irrelevant,
+    /// ordering is guaranteed, TCP is correct.
     /// </summary>
     public static class Net
     {
@@ -36,11 +35,7 @@ namespace InscryptionMP
         /// <summary>True when either transport has a live peer.</summary>
         public static bool Connected => SteamTransport.Connected || TcpConnected;
 
-        /// <summary>
-        /// Which transport messages should go through. Keyed on who actually has a peer:
-        /// routing on "is Steam active" meant a live TCP connection had its messages sent
-        /// to an empty Steam session and silently dropped.
-        /// </summary>
+        /// <summary>Which transport messages should go through.</summary>
         private static bool UseSteam => SteamTransport.Connected
                                         || (SteamTransport.Active && !TcpConnected);
 
@@ -135,10 +130,6 @@ namespace InscryptionMP
                         if (!_running) break;
 
                         // Only worth saying when the player is waiting on a connection.
-                        // Mid-match this loop retries every couple of seconds while the
-                        // match is held open, and a 20-second error notice per attempt
-                        // buried the "opponent left, rejoining keeps the match" state
-                        // under a permanent failure message.
                         if (!Reconnecting)
                             Notice.Bad($"Couldn't reach {host}:{port} - {e.Message}");
 
@@ -181,11 +172,7 @@ namespace InscryptionMP
             catch (Exception e) { Trace.Error($"[net] send failed: {e.Message}"); }
         }
 
-        /// <summary>
-        /// Match results bypass the inbox. The queue is only drained while a client waits
-        /// on the opponent's turn, so a result arriving during the winner's own turn would
-        /// sit unread and the match would never end for them.
-        /// </summary>
+        /// <summary>Match results bypass the inbox.</summary>
         public static bool? PendingResult { get; set; }
 
         /// <summary>Returns true if the message was a result and has been captured.</summary>
@@ -209,10 +196,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// Sniper aims the peer has sent, keyed by the slot their card sits in.
-        ///
-        /// Out-of-band because these arrive during combat, when nothing is draining the
-        /// normal inbox - the opponent's turn loop has already handed control to the
-        /// engine's attack sequence by then.
         /// </summary>
         private static readonly ConcurrentDictionary<int, int[]> Aims = new ConcurrentDictionary<int, int[]>();
 
@@ -221,15 +204,7 @@ namespace InscryptionMP
             return Aims.TryRemove(attackerSlot, out targets);
         }
 
-        /// <summary>
-        /// Drops aims nobody consumed.
-        ///
-        /// An aim is keyed by the slot its card sits in, and is only removed when that card
-        /// actually attacks. A Sniper card that dies before combat - sacrificed, or killed
-        /// by a trigger - leaves its aim behind, and the next card to occupy that slot
-        /// picks it up and fires at a target its owner never chose. Clearing per turn keeps
-        /// an aim usable only within the turn it was sent for.
-        /// </summary>
+        /// <summary>Drops aims nobody consumed.</summary>
         public static void ClearAims()
         {
             int stale = Aims.Count;
@@ -240,9 +215,8 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// Latch targets the peer has sent. A queue because two latchers can die in one
-        /// combat and both clients resolve them in the same order. Out-of-band like aims:
-        /// they arrive during combat, when nothing is draining the normal inbox.
+        /// Latch targets the peer has sent. A queue because two latchers can die in one combat
+        /// and both clients resolve them in the same order.
         /// </summary>
         private static readonly ConcurrentQueue<string> Latches = new ConcurrentQueue<string>();
 
@@ -342,12 +316,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// Drops gameplay messages left over from a previous match, keeping the connection.
-        ///
-        /// A match can end while the peer still has a play in flight - they don't know it's
-        /// over until our OVER reaches them. Those messages stayed queued and were drained
-        /// by the *next* match, putting a card on the board that was never played in it and
-        /// letting it attack. Control messages are captured out-of-band before they reach
-        /// this queue, so nothing here is worth keeping across matches.
         /// </summary>
         public static void FlushInbox()
         {

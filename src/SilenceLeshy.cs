@@ -4,14 +4,7 @@ using HarmonyLib;
 
 namespace InscryptionMP
 {
-    /// <summary>
-    /// Suppresses campaign dialogue during a versus match.
-    ///
-    /// The match runs inside the Act 1 scene, so Leshy narrates it as though it were part
-    /// of a run - commenting on draws, taunting, reacting to the scales. None of that
-    /// belongs in a match against another player, and some lines wait for input, which
-    /// stalls a turn the opponent is waiting on.
-    /// </summary>
+    /// <summary>Suppresses campaign dialogue during a versus match.</summary>
     [HarmonyPatch]
     internal static class SilenceLeshy
     {

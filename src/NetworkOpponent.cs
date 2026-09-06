@@ -6,14 +6,7 @@ using UnityEngine;
 
 namespace InscryptionMP
 {
-    /// <summary>
-    /// An Opponent whose plays come from the network instead of the AI.
-    ///
-    /// Core idea: each client runs an ordinary single-player battle. You are always
-    /// "the player" on your own screen; your peer is always "the opponent". A card the
-    /// peer plays into THEIR player slot N appears in OUR opponent slot N. The engine's
-    /// existing combat resolution is untouched.
-    /// </summary>
+    /// <summary>An Opponent whose plays come from the network instead of the AI.</summary>
     public class NetworkOpponent : Opponent
     {
         protected override string BlueprintSubfolderName => "";
@@ -119,13 +112,7 @@ namespace InscryptionMP
             yield return new WaitForSeconds(0.15f);
         }
 
-        /// <summary>
-        /// Makes our copy of the peer's side match the snapshot they sent.
-        ///
-        /// Individual plays can't express sacrifices or combat deaths, so replaying them
-        /// lets the board drift apart permanently. Reconciling against their own view of
-        /// their board each turn keeps the two clients honest.
-        /// </summary>
+        /// <summary>Makes our copy of the peer's side match the snapshot they sent.</summary>
         private IEnumerator ReconcileBoard(string[] slotNames)
         {
             var board = Singleton<BoardManager>.Instance;
@@ -176,11 +163,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// Nudges our copy of a peer card until it shows the stats they report.
-        ///
-        /// The adjustment is a delta against what the card currently shows, folded into a
-        /// single temporary mod. AddTemporaryMod replaces by singletonId, so this stays one
-        /// mod per card however many times it is corrected. The peer's screen is the
-        /// authority: whatever their card reads, ours is made to read the same.
         /// </summary>
         private void MatchStats(PlayableCard card, Protocol.SlotState wanted, int slotIndex)
         {
@@ -212,11 +194,7 @@ namespace InscryptionMP
                        $"(atk {attackDelta:+#;-#;0}, hp {healthDelta:+#;-#;0}{sigilNote})");
         }
 
-        /// <summary>
-        /// Sigils the peer's card has that ours doesn't yet. Reads back through the mods
-        /// we've already applied, so a sigil is never added twice, and skips names this
-        /// build doesn't know rather than throwing on a peer running something newer.
-        /// </summary>
+        /// <summary>Sigils the peer's card has that ours doesn't yet.</summary>
         private static List<Ability> MissingSigils(PlayableCard card, string[] wanted)
         {
             var missing = new List<Ability>();

@@ -14,20 +14,7 @@ namespace InscryptionMP
         Bad,
     }
 
-    /// <summary>
-    /// The one line of text that tells the player what just happened.
-    ///
-    /// Every dead-button bug in this mod has had the same shape: the action worked, or
-    /// failed for a knowable reason, and the UI showed nothing either way. Find Games
-    /// searched and found nothing; a direct Join failed with the reason sitting in the log
-    /// file. Both looked identical to a button that does nothing.
-    ///
-    /// So anything the player triggers says what it is doing, and anything that fails says
-    /// why, in words rather than silence.
-    ///
-    /// Timing deliberately avoids UnityEngine.Time: notices are raised from the network
-    /// threads, and Unity's time API is main-thread only.
-    /// </summary>
+    /// <summary>The one line of text that tells the player what just happened.</summary>
     public static class Notice
     {
         private const int FadeMs = 7000;
@@ -36,14 +23,7 @@ namespace InscryptionMP
         public static string Text { get; private set; }
         public static NoticeKind Kind { get; private set; }
 
-        /// <summary>
-        /// When the notice was set, as a tick count rather than a DateTime.
-        ///
-        /// Notices are raised from the network threads and read on the Unity main thread.
-        /// This build is 32-bit, where a 64-bit DateTime is not written atomically, so a
-        /// reader could see half of one value and half of another - a notice that never
-        /// expires or vanishes at once. An int is written atomically.
-        /// </summary>
+        /// <summary>When the notice was set, as a tick count rather than a DateTime.</summary>
         private static volatile int _setAt;
 
         public static void Say(string text)  => Set(text, NoticeKind.Info);

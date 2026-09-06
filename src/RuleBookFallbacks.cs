@@ -4,18 +4,7 @@ using HarmonyLib;
 
 namespace InscryptionMP
 {
-    /// <summary>
-    /// Makes the rulebook answer for cards from every act.
-    ///
-    /// The rulebook is built for one act's category, so an ability that only exists in
-    /// another act has no page. OpenToAbilityPage then does IndexOf(Find(...)) with no
-    /// match, which is -1, and the book flips to whatever happens to sit at that index -
-    /// clicking a GBC sigil would open an unrelated page like Skinning Knife.
-    ///
-    /// Rather than suppress the click, widen the book: in versus mode a deck can hold
-    /// cards from any act, so every ability that documents itself anywhere deserves a page.
-    /// Pages are looked up by id, so adding them doesn't disturb existing entries.
-    /// </summary>
+    /// <summary>Makes the rulebook answer for cards from every act.</summary>
     [HarmonyPatch]
     internal static class RuleBookFallbacks
     {

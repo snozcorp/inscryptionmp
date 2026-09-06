@@ -4,14 +4,7 @@ using HarmonyLib;
 
 namespace InscryptionMP
 {
-    /// <summary>
-    /// Pins the player at the table for the duration of a match.
-    ///
-    /// GameFlowManager polls input every frame in UpdateForTransitionToFirstPerson(), so
-    /// no view state alone can stop the player standing up - and standing up mid-match
-    /// re-reveals the map and leaves GameFlowManager in the wrong state. Blocking the
-    /// transition itself is the only reliable fix.
-    /// </summary>
+    /// <summary>Pins the player at the table for the duration of a match.</summary>
     [HarmonyPatch]
     internal static class MatchLock
     {
@@ -25,12 +18,8 @@ namespace InscryptionMP
 
         /// <summary>
         /// Part 1's scene initialisation ends by transitioning to the map and then reading
-        /// RunState.Run.map.EndNode - and a versus run is synthesised with no map, so that
-        /// read throws. Harmless in practice, because the throw lands after everything a
-        /// match needs, but it is a real exception on every Act 1 match.
-        ///
-        /// Skip it and keep the two bits of scene dressing it does first, which sit before
-        /// the map work and have nothing to do with it.
+        /// RunState.Run.map.EndNode - and a versus run is synthesised with no map, so that read
+        /// throws.
         /// </summary>
         [HarmonyPatch(typeof(Part1GameFlowManager), "SceneSpecificInitialization")]
         [HarmonyPrefix]
@@ -50,9 +39,7 @@ namespace InscryptionMP
 
         /// <summary>
         /// Part 3's scene initialisation puts the player on the holo map, or plays the P03
-        /// intro on a fresh save. Either one hijacks a match that is starting - and it
-        /// reaches the map through the protected TransitionTo, so blocking
-        /// TransitionToGameState never caught it.
+        /// intro on a fresh save.
         /// </summary>
         [HarmonyPatch(typeof(Part3GameFlowManager), "SceneSpecificInitialization")]
         [HarmonyPrefix]

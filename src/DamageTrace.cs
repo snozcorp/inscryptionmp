@@ -3,14 +3,7 @@ using HarmonyLib;
 
 namespace InscryptionMP
 {
-    /// <summary>
-    /// Records every point of damage alongside the board it was dealt from.
-    ///
-    /// "I took damage with nothing on the field" is hard to judge after the fact: an
-    /// opponent card striking an empty slot opposite it deals direct damage legitimately,
-    /// so the question is what was actually on both sides at that instant. Guessing from a
-    /// screenshot has been wrong before - this makes the next occurrence answerable.
-    /// </summary>
+    /// <summary>Records every point of damage alongside the board it was dealt from.</summary>
     [HarmonyPatch]
     internal static class DamageTrace
     {

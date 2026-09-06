@@ -4,17 +4,7 @@ using HarmonyLib;
 
 namespace InscryptionMP
 {
-    /// <summary>
-    /// Gives the two clients a shared notion of whose turn it is.
-    ///
-    /// Each client runs its own battle in which it is always "the player", so without
-    /// arbitration both sides sit in PlayerTurn at once: both play freely, and neither
-    /// sees the other's cards until somebody rings the bell.
-    ///
-    /// The host takes the first turn. Whoever is not the active player has their
-    /// PlayerTurn skipped, which drops them straight into OpponentTurn - where the
-    /// network wait loop lives, and where the peer's cards appear as they are played.
-    /// </summary>
+    /// <summary>Gives the two clients a shared notion of whose turn it is.</summary>
     [HarmonyPatch]
     internal static class TurnOrder
     {

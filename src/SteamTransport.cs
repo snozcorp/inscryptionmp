@@ -7,14 +7,7 @@ using Steamworks;
 
 namespace InscryptionMP
 {
-    /// <summary>
-    /// Steam lobby + P2P transport.
-    ///
-    /// Inscryption compiles Steamworks.NET into its own assembly and its SteamManager
-    /// already calls SteamAPI.RunCallbacks() every frame, so this needs no bundled
-    /// dependencies and no initialisation of its own. Players get friend invites, NAT
-    /// traversal and a lobby list without anyone running a master server.
-    /// </summary>
+    /// <summary>Steam lobby + P2P transport.</summary>
     public static class SteamTransport
     {
         private const string LobbyKey = "inscryption_mp";
@@ -81,9 +74,9 @@ namespace InscryptionMP
         public static bool Searching { get; private set; }
 
         /// <summary>
-        /// When the pending search started. Steam should always answer, but if it ever
-        /// doesn't, a stuck flag would disable Find Games for the rest of the session -
-        /// so a stale search is allowed to be replaced.
+        /// When the pending search started. Steam should always answer, but if it ever doesn't,
+        /// a stuck flag would disable Find Games for the rest of the session - so a stale
+        /// search is allowed to be replaced.
         /// </summary>
         private static int _searchStartedAt;
         private const int SearchTimeoutMs = 10000;

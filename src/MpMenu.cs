@@ -6,11 +6,8 @@ using UnityEngine;
 namespace InscryptionMP
 {
     /// <summary>
-    /// The mod's front end: a centred panel for finding an opponent and starting a match,
-    /// plus a compact status chip when it's closed.
-    ///
-    /// Steam is the primary path - lobbies give friend invites, NAT traversal and a
-    /// browser for free. The direct address fields stay as a LAN and non-Steam fallback.
+    /// The mod's front end: a centred panel for finding an opponent and starting a match, plus
+    /// a compact status chip when it's closed.
     /// </summary>
     internal class MpMenu : MonoBehaviour
     {
@@ -19,14 +16,7 @@ namespace InscryptionMP
 
         private const float PanelW = 510f;
 
-        /// <summary>
-        /// Height of the panel as IMGUI actually laid it out last frame.
-        ///
-        /// This used to be a base figure plus a bump for every optional line, which meant
-        /// every new notice needed a matching constant and a wrong guess pushed the
-        /// buttons off the bottom. Measuring is exact and never needs maintaining; the
-        /// one-frame lag on a size change is invisible.
-        /// </summary>
+        /// <summary>Height of the panel as IMGUI actually laid it out last frame.</summary>
         private float _measuredH = 300f;
 
         /// <summary>Height of the card-view control bar, measured the same way.</summary>
@@ -147,14 +137,7 @@ namespace InscryptionMP
         private static Font _gameFont;
         private static bool _fontSearched;
 
-        /// <summary>
-        /// The game's own typeface, if we can reach one.
-        ///
-        /// Inscryption draws its text through TextMeshPro, whose font assets aren't usable
-        /// by IMGUI directly - but they carry the original TTF in sourceFontFile, and that
-        /// is a plain Font. Falls back to the built-in face when nothing suitable turns up,
-        /// which is only a cosmetic loss.
-        /// </summary>
+        /// <summary>The game's own typeface, if we can reach one.</summary>
         private static Font GameFont()
         {
             if (_fontSearched) return _gameFont;
@@ -195,16 +178,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// Points every style at the game's face, and stops asking for sizes it can't give.
-        ///
-        /// Marksman is a bitmap font: Unity draws its glyphs at the size they were baked
-        /// at and ignores GUIStyle.fontSize - but layout still *measures* with fontSize.
-        /// A style asking for 12pt therefore reserved a 12pt box that then had 16pt glyphs
-        /// drawn into it, and the overflow was clipped. That is why the page counter showed
-        /// "page" with the numbers cut off, and why boxes kept not fitting their text.
-        ///
-        /// Setting fontSize to 0 means "use the font's own size", so measurement and
-        /// drawing finally agree. Everything ends up one size; the size hierarchy has to
-        /// come from colour and spacing instead, which the palette already does.
         /// </summary>
         private void ApplyFont()
         {
@@ -382,9 +355,8 @@ namespace InscryptionMP
 
         /// <summary>Colour for the current connection/turn state - the chip's whole job.</summary>
         /// <summary>
-        /// State reads through warmth: gold when it's on you to act, bone when it isn't,
-        /// rust when something is wrong. Adding separate greens and reds to a bone-and-gold
-        /// game just made it look like a status widget from a different application.
+        /// State reads through warmth: gold when it's on you to act, bone when it isn't, rust
+        /// when something is wrong.
         /// </summary>
         private Color StateColour()
         {
@@ -396,9 +368,9 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// The state, in as few words as carry it. Nothing about which key to press -
-        /// that belongs on the line below, and having it in both places meant the chip
-        /// said "F7" twice.
+        /// The state, in as few words as carry it. Nothing about which key to press - that
+        /// belongs on the line below, and having it in both places meant the chip said "F7"
+        /// twice.
         /// </summary>
         private static string StateText()
         {
@@ -411,8 +383,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// The line under the state: what is happening, or the one thing worth doing next.
-        /// During a match that's the scales, because they decide the game and they sit at
-        /// the far edge of the screen where nobody is looking.
         /// </summary>
         private static string DetailText()
         {
@@ -427,9 +397,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// How the scales are leaning, from the player's side. Null outside a battle.
-        ///
-        /// The scales are the actual win condition, and they live at the far left of the
-        /// screen where you aren't looking. Worth repeating next to whose turn it is.
         /// </summary>
         private static string ScalesText()
         {
@@ -445,16 +412,7 @@ namespace InscryptionMP
             return lead + " on the scales - " + toWin + " to win";
         }
 
-        /// <summary>
-        /// The always-on status marker. It was one grey line of text that read the same
-        /// whether you were mid-turn or not connected at all; now the state has a colour
-        /// and a word, the scales are repeated where you're looking, and anything the mod
-        /// is doing or has just failed at shows up here too - so you don't have to open
-        /// the menu to find out what happened.
-        ///
-        /// Every row is measured with CalcSize rather than assumed: the style carries
-        /// vertical padding, so a fixed row height clipped the text in half.
-        /// </summary>
+        /// <summary>The always-on status marker.</summary>
         private void DrawChip()
         {
             string state = StateText();
@@ -524,8 +482,6 @@ namespace InscryptionMP
 
         /// <summary>
         /// The game draws its cursor into the 3D scene, so anything we render covers it.
-        /// Draw our own unconditionally while our UI is up - gating it on "over the panel"
-        /// meant it vanished over the cards, which is exactly where it's needed.
         /// </summary>
         private void DrawCursor(Rect _unused)
         {
@@ -552,9 +508,8 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// Control bar for the 3D card view. The cards themselves are the game's, but
-        /// paging and switching between pool and deck need controls the card array
-        /// doesn't provide.
+        /// Control bar for the 3D card view. The cards themselves are the game's, but paging
+        /// and switching between pool and deck need controls the card array doesn't provide.
         /// </summary>
         private void DrawCardViewHint()
         {
@@ -601,13 +556,8 @@ namespace InscryptionMP
             GUILayout.BeginHorizontal();
             if (GUILayout.Button("< Prev", _button, GUILayout.Width(80f))) NativeDeckBuilder.PrevPage();
 
-            // Between the arrows with a width of its own. Sharing the row above with a
-            // label meant it kept being pushed off the end of the bar.
-            //
-            // Drawn at the font's own size. Two attempts at magnifying it through the GUI
-            // matrix both landed it on top of the Next button - nesting a scale inside the
-            // one the whole interface already uses is more trouble than a slightly larger
-            // page number is worth. It is bold and light-coloured instead.
+            // Between the arrows with a width of its own. Sharing the row above with a label
+            // meant it kept being pushed off the end of the bar.
             GUILayout.Space(12f);
             // A fixed height matching the buttons, so MiddleCenter has something to centre
             // within. Not ExpandHeight: the area around this is deliberately over-tall so
@@ -670,10 +620,8 @@ namespace InscryptionMP
         }
 
         /// <summary>
-        /// The panel shows one of three screens, because at any moment only one of them
-        /// is what you are trying to do: find an opponent, set up a match, or play one.
-        /// Drawing all three at once - connect fields still sitting there mid-match - is
-        /// what made this feel cluttered.
+        /// The panel shows one of three screens, because at any moment only one of them is what
+        /// you are trying to do: find an opponent, set up a match, or play one.
         /// </summary>
         private void DrawWindow(int id)
         {
@@ -710,15 +658,7 @@ namespace InscryptionMP
             GUILayout.EndArea();
         }
 
-        /// <summary>
-        /// How much larger to draw the whole interface.
-        ///
-        /// Marksman is a bitmap font, and Unity ignores GUIStyle.fontSize for those - it
-        /// draws the glyphs at their baked size whatever you ask for. Raising the sizes
-        /// therefore grew every box and left the text exactly as it was. Scaling the GUI
-        /// matrix enlarges the glyph textures along with everything else, so the layout
-        /// keeps its proportions.
-        /// </summary>
+        /// <summary>How much larger to draw the whole interface.</summary>
         private const float UiScale = 1.6f;
 
         private const float Pad = 24f;   // outer breathing room
@@ -928,12 +868,7 @@ namespace InscryptionMP
             GUILayout.Label("Both players need the same build of the mod.", _small);
         }
 
-        /// <summary>
-        /// Opens the panel from the title screen's multiplayer card.
-        ///
-        /// Static because the card is slotted from MenuController, which has no handle on
-        /// this component; the instance registers itself when it wakes.
-        /// </summary>
+        /// <summary>Opens the panel from the title screen's multiplayer card.</summary>
         public static void OpenFromMenuCard()
         {
             if (_instance == null)

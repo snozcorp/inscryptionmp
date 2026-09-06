@@ -69,6 +69,24 @@ Learned bringing up the other acts. All verified against Assembly-CSharp, not gu
   and skipping `OnCardReachedSlot` outright leaves `DoingCardTransition` set, which freezes
   the whole menu.
 
+- **`Latch.OnPreDeathAnimation` picks its target two different ways.** `if
+  (base.Card.OpponentCard)` runs `AISelectTarget`, otherwise the player chooses. Exactly
+  the shape of the Sniper problem, and worse in effect: `AIEvaluateTarget` adds 1000 to a
+  card whose side matches the sigil's sign, so for a negative sigil it reaches for the
+  opposite half of the board on purpose. Two clients therefore latch onto different cards.
+  The mod applies its sigil through `AddTemporaryMod` with `fromLatch` set, which is a
+  usable marker for catching every latcher without naming them.
+- **A fresh Part 1 run is not empty.** `RunState.InitializeStarterDeckAndItems` seeds
+  `consumables` with a Squirrel Bottle, then Pliers or the Special Dagger, then a Fish
+  Hook. `SpecialDaggerItem` writes `StoryEventsData.SetEventCompleted(SpecialDaggerUsed)`,
+  and that lands in `SaveManager.SaveFile.storyEvents` - the profile, not the run - so a
+  synthetic run does not contain it. It also sets `TurnManager.PostBattleSpecialNode`.
+- **`PauseMenu` owns a `MenuController` of its own.** Patching `MenuController` catches
+  the title screen and the in-game pause menu both; `PauseMenu.instance.menuController`
+  tells them apart, and `GBCPauseMenu` inherits it. `TweenInCards` also removes the
+  ascension card when Kaycee's Mod is locked, so a prefix that lays out the row sees a
+  card that is about to disappear.
+
 ### Two that cost real time
 - **Patching an overloaded method by name throws `AmbiguousMatchException` — during
   `PatchAll`.** That aborts the entire pass, so *every* patch in the mod silently fails to

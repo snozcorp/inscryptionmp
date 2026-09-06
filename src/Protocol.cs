@@ -185,6 +185,36 @@ namespace InscryptionMP
             return true;
         }
 
+        public const string LatchPrefix = "LATCH ";
+
+        /// <summary>
+        /// Which card a latcher fastened its sigil to, decided by the client that owns it.
+        ///
+        /// The same problem Sniper has: the owner picks by hand and the other client runs
+        /// an AI that picks differently, so the choice has to travel. The side is written
+        /// from the sender's point of view - P is their own half of the board - because the
+        /// receiver's halves are the other way round.
+        /// </summary>
+        public static string LatchTarget(bool sendersOwnSide, int slotIndex)
+        {
+            return LatchPrefix + (sendersOwnSide ? "P" : "O") + " " + slotIndex;
+        }
+
+        public static bool TryParseLatch(string msg, out bool sendersOwnSide, out int slotIndex)
+        {
+            sendersOwnSide = false;
+            slotIndex = -1;
+            if (msg == null || !msg.StartsWith(LatchPrefix)) return false;
+
+            string[] parts = msg.Substring(LatchPrefix.Length).Split(' ');
+            if (parts.Length != 2) return false;
+            if (parts[0] != "P" && parts[0] != "O") return false;
+            if (!int.TryParse(parts[1], out slotIndex)) return false;
+
+            sendersOwnSide = parts[0] == "P";
+            return true;
+        }
+
         public const string Won  = "OVER WON";    // sender is telling us THEY won
         public const string Lost = "OVER LOST";
 

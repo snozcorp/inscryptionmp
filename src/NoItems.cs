@@ -1,5 +1,4 @@
 using DiskCardGame;
-using HarmonyLib;
 
 namespace InscryptionMP
 {
@@ -24,8 +23,14 @@ namespace InscryptionMP
     /// So a match carries none. Both players get the same empty slots, which is at least
     /// symmetrical, and the board stays the only thing that decides a match. Syncing them
     /// properly is a real feature and wants its own protocol message; this is the floor.
+    ///
+    /// **The hammer is not one of these.** It lives in a slot of its own rather than in the
+    /// run's consumables, it only ever targets the player's own side, and the card it
+    /// smashes is gone from the turn-end snapshot like any other death - so it needs no
+    /// syncing and is left alone. Refusing every ConsumableItem took it out too, which is
+    /// why that guard is gone: HammerItem derives from TargetSlotItem, which derives from
+    /// ConsumableItem.
     /// </summary>
-    [HarmonyPatch]
     internal static class NoItems
     {
         /// <summary>
@@ -43,21 +48,5 @@ namespace InscryptionMP
             run.consumables.Clear();
         }
 
-        /// <summary>
-        /// The backstop, for anything that hands out an item after the run is built.
-        ///
-        /// The game asks this before letting an item be picked up or used, so refusing here
-        /// covers a slot we never saw filled - and costs nothing when the slots are empty.
-        /// </summary>
-        [HarmonyPatch(typeof(ConsumableItem), nameof(ConsumableItem.ConsumablesCanBeActivated))]
-        [HarmonyPostfix]
-        private static void NotDuringAMatch(ref bool __result)
-        {
-            if (!__result) return;
-            if (!VersusMode.InMatch) return;
-
-            Trace.Info("[items] refused an item activation - not in a versus match");
-            __result = false;
-        }
     }
 }

@@ -222,10 +222,6 @@ namespace InscryptionMP
             var missing = new List<Ability>();
             if (wanted == null || wanted.Length == 0) return missing;
 
-            List<Ability> have = card.TemporaryMods == null
-                ? new List<Ability>()
-                : AbilitiesUtil.GetAbilitiesFromMods(card.TemporaryMods) ?? new List<Ability>();
-
             foreach (string name in wanted)
             {
                 if (!Enum.IsDefined(typeof(Ability), name))
@@ -235,7 +231,12 @@ namespace InscryptionMP
                 }
 
                 var ability = (Ability)Enum.Parse(typeof(Ability), name);
-                if (have.Contains(ability) || missing.Contains(ability)) continue;
+
+                // HasAbility, not a read of the mods we have applied: a sigil the card was
+                // printed with is already there, and adding it a second time gives it two
+                // of the same icon - which Act 2 answers by drawing none of them, because
+                // it keeps one icon layout per sigil count and runs off the end of the list.
+                if (card.HasAbility(ability) || missing.Contains(ability)) continue;
                 missing.Add(ability);
             }
             return missing;

@@ -36,6 +36,18 @@ the save file's story events — the player's real profile, which a match has no
 touching — and queues a post-battle map node onto a run with no map. Both players now get
 the same empty slots. Syncing them properly is a feature for later.
 
+**Latchers latch onto the same card on both screens.** `Latch.OnPreDeathAnimation` has
+the same flaw Sniper did: the player who owns the latcher picks a target by hand, while on
+the other screen that card is an opponent card and the client runs an AI instead — one
+that deliberately favours the opposite side of the board for a negative sigil. The two
+clients ended up with the bomb on different cards, and once it went off they disagreed
+about which cards were still alive. The owner's choice now travels, and the AI only runs
+if the peer never says.
+
+Reconciling a peer's card also stopped re-adding a sigil it was printed with, which gave
+it two of the same icon — and in Act 2 a card with more sigils than the layout covers
+draws none at all.
+
 Also:
 - The title-screen card was appearing in the in-game pause menu too, on top of whatever
   card was already there; `PauseMenu` owns a `MenuController` of its own, so the patch

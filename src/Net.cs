@@ -235,6 +235,41 @@ namespace InscryptionMP
             int stale = Aims.Count;
             Aims.Clear();
             if (stale > 0) Trace.Info($"[sniper] discarded {stale} unused aim(s)");
+
+            ClearLatches();
+        }
+
+        /// <summary>
+        /// Latch targets the peer has sent, in the order they were chosen.
+        ///
+        /// A queue rather than a keyed lookup: two latchers can die in the same combat, and
+        /// both clients resolve those deaths in the same order off the same board, so first
+        /// in is first out. Out-of-band for the same reason aims are - these arrive during
+        /// combat, when the opponent's turn loop is no longer draining the inbox.
+        /// </summary>
+        private static readonly ConcurrentQueue<string> Latches = new ConcurrentQueue<string>();
+
+        public static bool TryTakeLatch(out bool sendersOwnSide, out int slotIndex)
+        {
+            sendersOwnSide = false;
+            slotIndex = -1;
+
+            string raw;
+            if (!Latches.TryDequeue(out raw)) return false;
+            return Protocol.TryParseLatch(raw, out sendersOwnSide, out slotIndex);
+        }
+
+        /// <summary>
+        /// Drops choices nobody consumed, for the same reason aims are dropped: a latcher
+        /// that dies without ever reaching its pre-death animation would leave its target
+        /// behind for the next one to pick up.
+        /// </summary>
+        public static void ClearLatches()
+        {
+            int stale = Latches.Count;
+            string ignored;
+            while (Latches.TryDequeue(out ignored)) { }
+            if (stale > 0) Trace.Info($"[latch] discarded {stale} unused target(s)");
         }
 
         /// <summary>Returns true if the message was handled out-of-band.</summary>
@@ -243,6 +278,12 @@ namespace InscryptionMP
             if (Protocol.TryParseAim(line, out int aimSlot, out int[] aimTargets))
             {
                 Aims[aimSlot] = aimTargets;
+                return true;
+            }
+
+            if (Protocol.TryParseLatch(line, out bool _, out int _))
+            {
+                Latches.Enqueue(line);
                 return true;
             }
 

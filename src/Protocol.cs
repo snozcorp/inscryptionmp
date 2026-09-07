@@ -8,8 +8,11 @@ namespace InscryptionMP
         /// Bumped whenever the wire format changes. Two clients on different protocol versions
         /// connect happily and then desync in confusing ways, so they refuse each other up
         /// front instead.
+        ///
+        /// 4 added the lobby negotiation - VOTE and READY - so both players agree on an act
+        /// and both commit before anything loads.
         /// </summary>
-        public const int Version = 3;
+        public const int Version = 4;
 
         /// <summary>The oldest protocol we can still play against.</summary>
         public const int MinCompatible = 2;
@@ -44,6 +47,40 @@ namespace InscryptionMP
             act = (MatchAct)n;
             return true;
         }
+
+        public const string VotePrefix = "VOTE ";
+        public const string ReadyPrefix = "READY ";
+
+        /// <summary>
+        /// Which act the sender wants to play. Both sides run their own battle on their own
+        /// table, so a match is only coherent if they picked the same one.
+        /// </summary>
+        public static string Vote(MatchAct act) => VotePrefix + (int)act;
+
+        public static bool TryParseVote(string msg, out MatchAct act)
+        {
+            act = MatchAct.Act1;
+            if (msg == null || !msg.StartsWith(VotePrefix)) return false;
+            if (!int.TryParse(msg.Substring(VotePrefix.Length), out int n)) return false;
+            if (n < 1 || n > 3) return false;
+            act = (MatchAct)n;
+            return true;
+        }
+
+        /// <summary>Whether the sender has committed to starting the act they voted for.</summary>
+        public static string Ready(bool ready) => ReadyPrefix + (ready ? "1" : "0");
+
+        public static bool TryParseReady(string msg, out bool ready)
+        {
+            ready = false;
+            if (msg == null || !msg.StartsWith(ReadyPrefix)) return false;
+
+            string value = msg.Substring(ReadyPrefix.Length).Trim();
+            if (value != "0" && value != "1") return false;
+            ready = value == "1";
+            return true;
+        }
+
         public const string SacrificePrefix = "SAC ";
         public const string BoardPrefix = "BOARD ";
 

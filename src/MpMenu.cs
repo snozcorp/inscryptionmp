@@ -35,6 +35,7 @@ namespace InscryptionMP
         private GUIStyle _chip, _label, _dim, _header, _section, _field, _button, _small;
         private GUIStyle _primary, _quiet, _warn, _resultText, _good, _busy, _close, _pageLabel;
         private GUIStyle _countLabel;
+        private GUIStyle _vote, _voteBoth;
         private GUIStyle _chipState, _chipInfo;
         private Texture2D _panelBg, _chipBg, _accent;
 
@@ -47,11 +48,24 @@ namespace InscryptionMP
                 if (NativeDeckBuilder.IsOpen) NativeDeckBuilder.Close();
                 else _open = !_open;
             }
-            if (Input.GetKeyDown(KeyCode.F8)) VersusMode.StartAnywhere(this);
+            // F8 does whatever the start button does. Forcing a match past a negotiation
+            // the other player is still in the middle of is not a shortcut, it's a desync.
+            if (Input.GetKeyDown(KeyCode.F8))
+            {
+                if (Lobby.Negotiating) Lobby.ToggleReady();
+                else VersusMode.StartAnywhere(this);
+            }
             if (Input.GetKeyDown(KeyCode.F12)) VersusMode.Abort(this);
 
             VersusMode.TickPendingStart(this);
             NativeDeckBuilder.TickPendingOpen(this);
+            Lobby.Tick(this);
+
+            // Keep the lobby list alive while it is the thing being looked at. Driven from
+            // here rather than OnGUI, which runs several times a frame.
+            if (_open && !NativeDeckBuilder.IsOpen && !VersusMode.InMatch
+                && !Net.Connected && !Net.Running)
+                SteamTransport.AutoRefresh();
 
             // Get out of the way when a match STARTS, however it was triggered - button,
             // hotkey, or the peer asking us to join. Edge-triggered on purpose: closing it
@@ -188,7 +202,7 @@ namespace InscryptionMP
             foreach (GUIStyle st in new[] { _chip, _label, _dim, _small, _header, _section,
                                             _field, _button, _primary, _quiet, _warn, _good,
                                             _busy, _close, _resultText, _chipState, _chipInfo,
-                                            _pageLabel, _countLabel })
+                                            _pageLabel, _countLabel, _vote, _voteBoth })
             {
                 if (st == null) continue;
                 st.font = f;
@@ -282,6 +296,18 @@ namespace InscryptionMP
 
             _countLabel = new GUIStyle(_pageLabel) { alignment = TextAnchor.MiddleRight };
 
+            // The tally under each act button. Small enough to read as an annotation on the
+            // button rather than as another row of controls.
+            _vote = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 12,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.UpperCenter,
+                padding = new RectOffset(0, 0, 2, 0),
+                normal = { textColor = BoneFaint },
+            };
+            _voteBoth = new GUIStyle(_vote) { normal = { textColor = Gold } };
+
 
             _warn = new GUIStyle(_small) { normal = { textColor = Rust } };
             _good = new GUIStyle(_small) { normal = { textColor = Gold } };
@@ -309,7 +335,8 @@ namespace InscryptionMP
             //
             // GUI.skin.label wraps by default, so a box even slightly too narrow keeps the
             // first word and drops the rest - "deck 8/20" rendered as "deck".
-            foreach (GUIStyle st in new[] { _countLabel, _pageLabel, _section, _chipState, _chipInfo })
+            foreach (GUIStyle st in new[] { _countLabel, _pageLabel, _section, _chipState,
+                                            _chipInfo, _vote, _voteBoth })
                 if (st != null) st.wordWrap = false;
 
             ApplyFont();
@@ -388,8 +415,9 @@ namespace InscryptionMP
         {
             if (VersusMode.Suspended) return "OPPONENT LEFT";
             if (VersusMode.InMatch) return TurnOrder.IsMyTurn ? "YOUR TURN" : "THEIR TURN";
-            if (Net.Connected) return "READY";
-            if (Net.Running) return Net.IsHost ? "WAITING" : "CONNECTING";
+            if (Net.Connected)
+                return Lobby.Negotiating ? "IN LOBBY  " + Lobby.ReadyCount + "/2" : "READY";
+            if (Net.Running) return Net.IsHost ? "HOSTING" : "CONNECTING";
             return "OFFLINE";
         }
 
@@ -402,8 +430,18 @@ namespace InscryptionMP
                 return "Rejoining within " + Mathf.CeilToInt(VersusMode.SuspendedSecondsLeft) + "s keeps the match";
 
             if (VersusMode.InMatch) return ScalesText();
-            if (Net.Connected) return "Press F7 to start a match";
-            if (Net.Running) return Net.IsHost ? "Waiting for someone to join" : "Connecting to host";
+
+            if (Net.Connected)
+            {
+                if (!Lobby.Negotiating) return "Press F7 to start a match";
+                if (Lobby.BothReady) return "Starting...";
+                if (Lobby.MyReady) return "Waiting for your opponent to press start";
+                return Lobby.Blocker ?? "Press F7 to start the " + ActInfo.Name(Lobby.MyAct) + " match";
+            }
+
+            // Nothing to add that the state doesn't already say. The chip skips a null row,
+            // which reads better than repeating "connecting" underneath "CONNECTING".
+            if (Net.Running) return Net.IsHost ? "Waiting for an opponent to join" : null;
             return "Press F7 to find a game";
         }
 
@@ -429,7 +467,10 @@ namespace InscryptionMP
         {
             string state = StateText();
             string detail = DetailText();
-            bool notice = Notice.Visible;
+
+            // The notice and the detail line are two ways of saying what is going on, and
+            // they often land on the same words. Only one of them is worth the row.
+            bool notice = Notice.Visible && !Echoes(Notice.Text, detail) && !Echoes(Notice.Text, state);
 
             var stateStyle = new GUIStyle(_chipState) { normal = { textColor = StateColour() } };
 
@@ -467,9 +508,11 @@ namespace InscryptionMP
                 GUI.Label(new Rect(x, y, rowW, noticeSize.y), Notice.Text, NoticeStyle());
         }
 
-        private GUIStyle NoticeStyle()
+        private GUIStyle NoticeStyle() => StyleFor(Notice.Kind);
+
+        private GUIStyle StyleFor(NoticeKind kind)
         {
-            switch (Notice.Kind)
+            switch (kind)
             {
                 case NoticeKind.Bad:  return _warn;
                 case NoticeKind.Good: return _good;
@@ -478,10 +521,61 @@ namespace InscryptionMP
             }
         }
 
+        /// <summary>
+        /// Every line of prose the panel has drawn this pass. The status line, the act
+        /// agreement, the last result and the notice are all written by different parts of
+        /// the mod, and they regularly arrive at the same sentence - which is what made the
+        /// panel say things twice.
+        /// </summary>
+        private readonly List<string> _said = new List<string>();
+
+        /// <summary>
+        /// Draws a line unless the panel has already said it in some other wording, and
+        /// remembers it either way.
+        /// </summary>
+        private void Say(string text, GUIStyle style)
+        {
+            if (string.IsNullOrEmpty(text) || AlreadySaid(text)) return;
+            _said.Add(text);
+            GUILayout.Label(text, style);
+        }
+
+        /// <summary>Letters and digits only, so wording and punctuation stop mattering.</summary>
+        private static string Bare(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return "";
+            var sb = new System.Text.StringBuilder(text.Length);
+            foreach (char c in text)
+                if (char.IsLetterOrDigit(c)) sb.Append(char.ToLowerInvariant(c));
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Whether two lines say the same thing. One containing the other counts - "you won"
+        /// against "last match: you won" - with a length floor so a short phrase can't
+        /// swallow an unrelated longer one.
+        /// </summary>
+        private static bool Echoes(string a, string b)
+        {
+            string x = Bare(a), y = Bare(b);
+            if (x.Length == 0 || y.Length == 0) return false;
+            if (x == y) return true;
+            if (y.Length >= 8 && x.Contains(y)) return true;
+            return x.Length >= 8 && y.Contains(x);
+        }
+
+        private bool AlreadySaid(string text)
+        {
+            foreach (string line in _said)
+                if (Echoes(text, line)) return true;
+            return false;
+        }
+
         /// <summary>The notice, drawn inside the panel so it's visible with the menu open.</summary>
         private void DrawNotice()
         {
             if (!Notice.Visible) return;
+            if (AlreadySaid(Notice.Text)) return;
             GUILayout.Space(6f);
             GUILayout.Label(Notice.Text, NoticeStyle());
         }
@@ -649,6 +743,10 @@ namespace InscryptionMP
             Frame(new Rect(panel.x + 3f, panel.y + 3f, panel.width - 6f, panel.height - 6f),
                   new Color(1f, 1f, 1f, 0.04f));
 
+            // IMGUI runs this twice a frame - layout, then repaint - so the record of what
+            // has been said has to start empty on each pass, not each frame.
+            _said.Clear();
+
             GUILayout.BeginArea(new Rect(Pad, Pad, PanelW - Pad * 2f, _measuredH));
             GUILayout.BeginVertical();
 
@@ -661,7 +759,9 @@ namespace InscryptionMP
             DrawNotice();
 
             GUILayout.Space(Gap);
-            GUILayout.Label("F7 menu     F8 start match     F12 abort", _small);
+            GUILayout.Label(Lobby.Negotiating
+                            ? "F7 menu     F8 ready up     F12 abort"
+                            : "F7 menu     F8 start match     F12 abort", _small);
 
             GUILayout.EndVertical();
 
@@ -722,37 +822,63 @@ namespace InscryptionMP
 
             if (Net.HandshakeError != null) DrawHandshakeError();
 
-            if (!SteamTransport.Available)
+            // Hosting or dialling out is a state of its own: offering Host and Find while one
+            // is already in flight is how you end up with two lobbies and no opponent.
+            if (Net.Running && !Net.Connected) DrawWaitingSection();
+            else if (!SteamTransport.Available)
             {
-                GUILayout.Label("Steam not detected - use a direct address.", _small);
+                Say("Steam not detected - use a direct address.", _small);
                 _showDirect = true;
             }
-            else
-            {
-                GUILayout.BeginHorizontal();
-                if (GUILayout.Button("Host Lobby", _primary, GUILayout.Height(40f))) SteamTransport.HostLobby();
-                GUILayout.Space(8f);
-                if (GUILayout.Button("Find Games", _primary, GUILayout.Height(40f))) SteamTransport.RefreshLobbies();
-                GUILayout.EndHorizontal();
-
-                GUILayout.Space(6f);
-                GUILayout.Label(SteamTransport.Status, _small);
-
-                if (SteamTransport.Lobbies.Count > 0)
-                {
-                    GUILayout.Space(6f);
-                    _lobbyScroll = GUILayout.BeginScrollView(_lobbyScroll, GUILayout.Height(96f));
-                    foreach (var lobby in SteamTransport.Lobbies)
-                        if (GUILayout.Button(lobby.Value, _button)) SteamTransport.JoinLobby(lobby.Key);
-                    GUILayout.EndScrollView();
-                }
-            }
+            else DrawFindSection();
 
             GUILayout.Space(Section);
             DrawDeckSection();
 
             GUILayout.Space(Section);
             DrawDirectSection();
+        }
+
+        /// <summary>Waiting on a peer that hasn't turned up yet - and the way out of it.</summary>
+        private void DrawWaitingSection()
+        {
+            bool steam = SteamTransport.Active;
+
+            GUILayout.BeginHorizontal();
+            Say(steam ? SteamTransport.Status : Net.StatusLine,
+                StyleFor(steam ? SteamTransport.StatusKind : NoticeKind.Busy));
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Cancel", _quiet, GUILayout.Width(100f))) Net.Shutdown();
+            GUILayout.EndHorizontal();
+
+            if (steam && SteamTransport.IsHost)
+                Say("They press Find Games and pick your name from the list.", _small);
+        }
+
+        /// <summary>Host a lobby, or go looking for one.</summary>
+        private void DrawFindSection()
+        {
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Host Lobby", _primary, GUILayout.Height(40f))) SteamTransport.HostLobby();
+            GUILayout.Space(8f);
+
+            GUI.enabled = !SteamTransport.BusySearching;
+            if (GUILayout.Button(SteamTransport.BusySearching ? "Searching..." : "Find Games",
+                                 _primary, GUILayout.Height(40f)))
+                SteamTransport.RefreshLobbies();
+            GUI.enabled = true;
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6f);
+            Say(SteamTransport.Status, StyleFor(SteamTransport.StatusKind));
+
+            if (SteamTransport.Lobbies.Count == 0) return;
+
+            GUILayout.Space(6f);
+            _lobbyScroll = GUILayout.BeginScrollView(_lobbyScroll, GUILayout.Height(96f));
+            foreach (var lobby in SteamTransport.Lobbies)
+                if (GUILayout.Button(lobby.Value, _button)) SteamTransport.JoinLobby(lobby.Key);
+            GUILayout.EndScrollView();
         }
 
         /// <summary>
@@ -762,20 +888,54 @@ namespace InscryptionMP
         /// </summary>
         private void DrawDeckSection()
         {
-            GUILayout.Space(Section);
             GUILayout.Label("ACT", _section);
+
+            // Fixed widths on both rows, so each tally sits under the act it belongs to.
+            const float actGap = 8f;
+            float actW = (PanelW - Pad * 2f - actGap * 2f) / 3f;
+            MatchAct[] acts = { MatchAct.Act1, MatchAct.Act2, MatchAct.Act3 };
+
             GUILayout.BeginHorizontal();
-            foreach (MatchAct act in new[] { MatchAct.Act1, MatchAct.Act2, MatchAct.Act3 })
+            foreach (MatchAct act in acts)
             {
-                if (act != MatchAct.Act1) GUILayout.Space(8f);
+                if (act != MatchAct.Act1) GUILayout.Space(actGap);
                 bool chosen = ActInfo.Selected == act;
-                if (GUILayout.Button(ActInfo.Name(act), chosen ? _primary : _button, GUILayout.Height(38f)))
-                {
-                    ActInfo.Selected = act;
-                    SteamTransport.PublishSelectedAct();   // keep a hosted lobby honest
-                }
+
+                // The number is the whole reason to prefer one of these over another, and
+                // it used to take three clicks to see all three.
+                int cards = DeckStore.CountFor(act);
+                string label = cards < 0 ? ActInfo.Name(act) : ActInfo.Name(act) + "   " + cards;
+
+                if (GUILayout.Button(label, chosen ? _primary : _button,
+                                     GUILayout.Width(actW), GUILayout.Height(38f)))
+                    Lobby.ChooseAct(act);
             }
             GUILayout.EndHorizontal();
+
+            // Who wants what. Only meaningful with someone on the other end to disagree.
+            if (Lobby.Negotiating)
+            {
+                GUILayout.BeginHorizontal();
+                foreach (MatchAct act in acts)
+                {
+                    if (act != MatchAct.Act1) GUILayout.Space(actGap);
+                    int votes = Lobby.VotesFor(act);
+                    string mark = votes == 2 ? "BOTH"
+                                : votes == 0 ? ""
+                                : Lobby.MyAct == act ? "YOU" : "THEM";
+                    GUILayout.Label(mark, votes == 2 ? _voteBoth : _vote, GUILayout.Width(actW));
+                }
+                GUILayout.EndHorizontal();
+
+                GUILayout.Space(2f);
+                if (Lobby.ActAgreed)
+                    Say(ActInfo.Name(Lobby.MyAct) + " agreed - 2/2", _good);
+                else if (Lobby.PeerAct.HasValue)
+                    Say("They want " + ActInfo.Name(Lobby.PeerAct.Value)
+                        + " - agree on one act to start.", _warn);
+                else
+                    Say("Waiting for your opponent to pick an act...", _busy);
+            }
 
             GUILayout.Space(Gap);
             if (GUILayout.Button("Edit " + ActInfo.Name(ActInfo.Selected) + " deck   ("
@@ -784,9 +944,9 @@ namespace InscryptionMP
                 OpenCardView();
 
             if (!DeckStore.IsValid)
-                GUILayout.Label("Deck needs " + DeckStore.MinCards + "-" + DeckStore.MaxCards + " cards.", _warn);
+                Say("Deck needs " + DeckStore.MinCards + "-" + DeckStore.MaxCards + " cards.", _warn);
             if (NativeDeckBuilder.LastError != null)
-                GUILayout.Label(NativeDeckBuilder.LastError, _warn);
+                Say(NativeDeckBuilder.LastError, _warn);
         }
 
         /// <summary>
@@ -824,7 +984,7 @@ namespace InscryptionMP
         private void DrawReadyScreen()
         {
             GUILayout.BeginHorizontal();
-            GUILayout.Label(Net.StatusLine, _label);
+            Say(Net.StatusLine, _label);
             GUILayout.FlexibleSpace();
             if (GUILayout.Button("Disconnect", _quiet, GUILayout.Width(100f))) Net.Shutdown();
             GUILayout.EndHorizontal();
@@ -840,26 +1000,62 @@ namespace InscryptionMP
             if (VersusMode.LastResult != null)
             {
                 GUILayout.Space(Gap);
-                GUILayout.Label("Last match: " + VersusMode.LastResult, _resultText);
+                Say(VersusMode.LastResult, _resultText);
             }
 
+            GUILayout.Space(Section);
             DrawDeckSection();
 
             GUILayout.Space(Section);
+            DrawStartButton();
+        }
 
+        /// <summary>
+        /// Starting is a commitment from both players, not a command one gives the other. The
+        /// button records yours and lights up for real once theirs arrives.
+        /// </summary>
+        private void DrawStartButton()
+        {
             // Loading a scene takes a couple of seconds. Without this the button looked
-            // like it had done nothing, which is the bug this whole pass is about.
+            // like it had done nothing.
             bool busy = VersusMode.PendingStart || NativeDeckBuilder.PendingOpen;
-            string go = busy ? "STARTING..."
-                      : VersusMode.LastResult != null ? "PLAY AGAIN"
-                      : "START MATCH";
 
-            GUI.enabled = DeckStore.IsValid && !busy;
-            if (GUILayout.Button(go, _primary, GUILayout.Height(52f))) VersusMode.StartAnywhere(this);
+            if (!Lobby.Negotiating)
+            {
+                // An older build can't vote or commit, so it keeps the behaviour it knows:
+                // either player starts, and both are pulled in.
+                string legacy = busy ? "STARTING..."
+                              : VersusMode.LastResult != null ? "PLAY AGAIN"
+                              : "START MATCH";
+
+                GUI.enabled = DeckStore.IsValid && !busy;
+                if (GUILayout.Button(legacy, _primary, GUILayout.Height(52f)))
+                    VersusMode.StartAnywhere(this);
+                GUI.enabled = true;
+
+                GUILayout.Space(4f);
+                Say("Their build is older - either player can start, and you both enter together.",
+                    _small);
+                return;
+            }
+
+            string blocker = Lobby.Blocker;
+            string verb = VersusMode.LastResult != null ? "PLAY AGAIN" : "START MATCH";
+            string label = busy || Lobby.BothReady ? "STARTING..."
+                         : Lobby.MyReady ? "WAITING FOR OPPONENT   " + Lobby.ReadyCount + "/2"
+                         : verb + "   " + Lobby.ReadyCount + "/2";
+
+            // Backing out of a commitment stays available even when something else has since
+            // gone wrong - otherwise a disagreement over acts strands you as permanently ready.
+            GUI.enabled = !busy && (Lobby.MyReady || blocker == null);
+            if (GUILayout.Button(label, Lobby.MyReady ? _button : _primary, GUILayout.Height(52f)))
+                Lobby.ToggleReady();
             GUI.enabled = true;
 
             GUILayout.Space(4f);
-            GUILayout.Label("Either player can start - you both enter together.", _small);
+            if (blocker != null) Say(blocker, _warn);
+            else if (Lobby.MyReady) Say("Press again to take it back.", _small);
+            else Say("The match loads once both of you have pressed start.", _small);
         }
 
         // -------------------------------------------------------------------- match

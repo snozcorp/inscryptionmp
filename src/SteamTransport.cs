@@ -61,6 +61,19 @@ namespace InscryptionMP
         public static bool IsHost { get; private set; }
         public static string Status { get; private set; } = "idle";
 
+        /// <summary>
+        /// How the status line should read - in progress, worked, failed. The panel draws
+        /// Status once and colours it with this, rather than also raising a notice that says
+        /// the same thing again two rows further down.
+        /// </summary>
+        public static NoticeKind StatusKind { get; private set; } = NoticeKind.Info;
+
+        private static void SetStatus(string text, NoticeKind kind = NoticeKind.Info)
+        {
+            Status = text;
+            StatusKind = kind;
+        }
+
         private static CSteamID _lobby;
         private static CSteamID _peer;
 
@@ -72,6 +85,18 @@ namespace InscryptionMP
 
         /// <summary>True between requesting a lobby list and the result arriving.</summary>
         public static bool Searching { get; private set; }
+
+        /// <summary>
+        /// Whether the current search is the background sweep rather than something the
+        /// player asked for. A quiet one says nothing until it has an answer.
+        /// </summary>
+        private static bool _quietSearch;
+
+        /// <summary>A search worth showing a spinner for.</summary>
+        public static bool BusySearching => Searching && !_quietSearch;
+
+        private static int _lastSearchAt;
+        private const int AutoRefreshMs = 5000;
 
         /// <summary>
         /// When the pending search started. Steam should always answer, but if it ever doesn't,
@@ -100,14 +125,19 @@ namespace InscryptionMP
 
         public static void HostLobby()
         {
-            Net.ShutdownTcp();   // one transport at a time
             if (!Available) { Trace.Warn("[steam] not initialised"); return; }
+
+            // Pressing Host again while already hosting used to create a second lobby and
+            // abandon the first, leaving one advertised that nobody was actually watching.
+            if (Active && IsHost) { Trace.Info("[steam] already hosting"); return; }
+
+            Net.ShutdownTcp();   // one transport at a time
             EnsureCallbacks();
             Reset();
+            Lobbies.Clear();
             Active = true;
             IsHost = true;
-            Status = "creating lobby...";
-            Notice.Busy("Creating a Steam lobby...");
+            SetStatus("creating lobby...", NoticeKind.Busy);
             Trace.Info("[steam] creating lobby");
             SteamMatchmaking.CreateLobby(ELobbyType.k_ELobbyTypePublic, 2);
         }
@@ -122,9 +152,23 @@ namespace InscryptionMP
             SteamMatchmaking.SetLobbyData(_lobby, LobbyActKey, ((int)ActInfo.Selected).ToString());
         }
 
-        public static void RefreshLobbies()
+        public static void RefreshLobbies() => Search(quiet: false);
+
+        /// <summary>
+        /// A sweep while the find screen is on show. A list that only changes when you press
+        /// a button is a snapshot of the instant you pressed it, and a lobby hosted a second
+        /// later stays invisible until you think to press again.
+        /// </summary>
+        public static void AutoRefresh()
         {
-            if (!Available) { Status = "Steam not initialised"; Trace.Warn("[steam] not initialised"); return; }
+            if (!Available || Active || Searching) return;
+            if (unchecked(Environment.TickCount - _lastSearchAt) < AutoRefreshMs) return;
+            Search(quiet: true);
+        }
+
+        private static void Search(bool quiet)
+        {
+            if (!Available) { SetStatus("Steam not initialised", NoticeKind.Bad); Trace.Warn("[steam] not initialised"); return; }
             EnsureCallbacks();
 
             // One CallResult at a time: setting a new handle abandons the pending one, so
@@ -136,28 +180,43 @@ namespace InscryptionMP
                 return;
             }
 
-            Lobbies.Clear();
+            // Deliberately not clearing the list here: the results replace it when they
+            // arrive, and emptying it up front made the panel blink and resize on every
+            // background sweep.
             Searching = true;
+            _quietSearch = quiet;
             _searchStartedAt = Environment.TickCount;
-            Status = "searching...";
-            Notice.Busy("Searching for games...");
-            Trace.Info("[steam] requesting lobby list");
+            _lastSearchAt = _searchStartedAt;
+            if (!quiet) SetStatus("searching...", NoticeKind.Busy);
+            Trace.Info("[steam] requesting lobby list" + (quiet ? " (background)" : ""));
             SteamMatchmaking.AddRequestLobbyListStringFilter(
                 LobbyKey, LobbyValue, ELobbyComparison.k_ELobbyComparisonEqual);
+
+            // A lobby seats two and a match needs both, so one that has already paired up is
+            // not something a third player should be offered.
+            SteamMatchmaking.AddRequestLobbyListFilterSlotsAvailable(1);
             SteamAPICall_t call = SteamMatchmaking.RequestLobbyList();
             _crList.Set(call);
         }
 
         public static void JoinLobby(CSteamID lobby)
         {
-            Net.ShutdownTcp();   // one transport at a time
             if (!Available) return;
+            Net.ShutdownTcp();   // one transport at a time
             EnsureCallbacks();
             Reset();
+            Lobbies.Clear();
             Active = true;
             IsHost = false;
-            Status = "joining...";
-            Notice.Busy("Joining lobby...");
+
+            // You picked the lobby that said Act 3 because you wanted Act 3. Opening your
+            // vote on whatever was selected before makes the first thing you see on arrival
+            // a disagreement you did not have.
+            string actRaw = SteamMatchmaking.GetLobbyData(lobby, LobbyActKey);
+            if (int.TryParse(actRaw, out int actNum) && actNum >= 1 && actNum <= 3)
+                Lobby.ChooseAct((MatchAct)actNum);
+
+            SetStatus("joining...", NoticeKind.Busy);
             Trace.Info("[steam] joining lobby " + lobby);
             SteamMatchmaking.JoinLobby(lobby);
         }
@@ -166,7 +225,7 @@ namespace InscryptionMP
         {
             if (e.m_eResult != EResult.k_EResultOK)
             {
-                Status = "lobby failed (" + e.m_eResult + ")";
+                SetStatus("couldn't create a lobby (" + e.m_eResult + ")", NoticeKind.Bad);
                 Trace.Error("[steam] lobby creation failed: " + e.m_eResult);
                 Active = false;
                 return;
@@ -179,20 +238,27 @@ namespace InscryptionMP
             // The host's act decides the table for both players, so say which one before
             // anyone commits to joining.
             SteamMatchmaking.SetLobbyData(_lobby, LobbyActKey, ((int)ActInfo.Selected).ToString());
-            Status = "waiting for opponent";
+            SetStatus("waiting for an opponent to join", NoticeKind.Busy);
             Trace.Info("[steam] lobby created - waiting for opponent");
         }
 
         private static void OnLobbyList(LobbyMatchList_t e, bool failed)
         {
             Searching = false;
-            Lobbies.Clear();
+            bool quiet = _quietSearch;
+            _quietSearch = false;
+
             if (failed)
             {
-                Status = "search failed - try again";
-                Notice.Bad("Steam lobby search failed. Try again.");
+                // A background sweep failing is not news, and wiping a good list over it
+                // would be worse than showing one a few seconds stale.
+                if (quiet) { Trace.Warn("[steam] background lobby search failed"); return; }
+                Lobbies.Clear();
+                SetStatus("search failed - try again", NoticeKind.Bad);
                 return;
             }
+
+            Lobbies.Clear();
 
             CSteamID me = SteamUser.GetSteamID();
             for (int i = 0; i < e.m_nLobbiesMatching; i++)
@@ -202,6 +268,10 @@ namespace InscryptionMP
                 // Your own lobby comes back in the search results. Joining it does
                 // nothing, so don't offer it.
                 if (SteamMatchmaking.GetLobbyOwner(id) == me) continue;
+
+                // Belt and braces alongside the slots filter: a lobby that filled up between
+                // the request and the reply is no longer somewhere a third player can go.
+                if (SteamMatchmaking.GetNumLobbyMembers(id) >= 2) continue;
 
                 string name = SteamMatchmaking.GetLobbyData(id, LobbyHostKey);
                 if (string.IsNullOrEmpty(name)) name = id.ToString();
@@ -214,12 +284,11 @@ namespace InscryptionMP
             }
             // Say plainly that a search happened and came back empty. Drawing nothing at
             // all is indistinguishable from the button not working.
-            Status = Lobbies.Count == 0
-                ? "no games found - someone has to Host Lobby first"
-                : Lobbies.Count + (Lobbies.Count == 1 ? " game found" : " games found");
-
-            if (Lobbies.Count == 0) Notice.Say("No games found. Someone has to Host Lobby first.");
-            else Notice.Good(Status);
+            if (Lobbies.Count == 0)
+                SetStatus("no open games - someone has to Host Lobby first");
+            else
+                SetStatus(Lobbies.Count + (Lobbies.Count == 1 ? " open game" : " open games")
+                          + " - pick one to join", NoticeKind.Good);
             Trace.Info("[steam] found " + Lobbies.Count + " lobbies");
         }
 
@@ -234,18 +303,47 @@ namespace InscryptionMP
 
             TryFindPeer(me);
 
-            if (_peer.IsValid())
-            {
-                Connected = true;
-                Status = "connected to " + SteamFriends.GetFriendPersonaName(_peer);
-                Trace.Info("[steam] " + Status);
-                Net.SendHello();
-            }
+            if (_peer.IsValid()) NotePeerArrived(_peer);
             else
             {
-                Status = "waiting for opponent";
+                SetStatus("waiting for an opponent to join", NoticeKind.Busy);
                 Trace.Info("[steam] in lobby, waiting for opponent");
             }
+        }
+
+        /// <summary>
+        /// One place for "we have an opponent". It used to be written out at each of the four
+        /// points a peer can turn up, and closing the lobby to newcomers was missing from
+        /// every one of them.
+        /// </summary>
+        private static void NotePeerArrived(CSteamID peer)
+        {
+            _peer = peer;
+            Connected = true;
+            SetStatus("connected to " + SteamFriends.GetFriendPersonaName(peer), NoticeKind.Good);
+            Trace.Info("[steam] " + Status);
+
+            // Both seats are taken. Steam hides a full lobby from a filtered search anyway,
+            // but only the owner can say so the moment the second player arrives.
+            SetJoinable(false);
+            Net.SendHello();
+        }
+
+        private static void NotePeerLost()
+        {
+            if (_peer.IsValid()) SteamNetworking.CloseP2PSessionWithUser(_peer);
+            _peer = CSteamID.Nil;
+            Connected = false;
+            SetStatus("opponent disconnected", NoticeKind.Bad);
+            SetJoinable(true);
+        }
+
+        /// <summary>Whether anyone else may still walk into our lobby.</summary>
+        private static void SetJoinable(bool joinable)
+        {
+            if (!IsHost || !_lobby.IsValid() || !Available) return;
+            SteamMatchmaking.SetLobbyJoinable(_lobby, joinable);
+            Trace.Info("[steam] lobby is now " + (joinable ? "open" : "closed") + " to new players");
         }
 
         private static void TryFindPeer(CSteamID me)
@@ -273,10 +371,7 @@ namespace InscryptionMP
             if ((e.m_rgfChatMemberStateChange & left) != 0 && who == _peer)
             {
                 Trace.Warn("[steam] opponent left the lobby");
-                SteamNetworking.CloseP2PSessionWithUser(_peer);
-                _peer = CSteamID.Nil;
-                Connected = false;
-                Status = "opponent disconnected";
+                NotePeerLost();
                 return;
             }
 
@@ -285,10 +380,7 @@ namespace InscryptionMP
                 && who != SteamUser.GetSteamID())
             {
                 Trace.Info("[steam] opponent (re)joined the lobby");
-                _peer = who;
-                Connected = true;
-                Status = "connected to " + SteamFriends.GetFriendPersonaName(_peer);
-                Net.SendHello();
+                NotePeerArrived(who);
             }
         }
 
@@ -296,12 +388,7 @@ namespace InscryptionMP
         {
             Trace.Info("[steam] accepting P2P session from " + e.m_steamIDRemote);
             SteamNetworking.AcceptP2PSessionWithUser(e.m_steamIDRemote);
-            if (!_peer.IsValid())
-            {
-                _peer = e.m_steamIDRemote;
-                Connected = true;
-                Status = "connected to " + SteamFriends.GetFriendPersonaName(_peer);
-            }
+            if (!_peer.IsValid()) NotePeerArrived(e.m_steamIDRemote);
         }
 
         public static void Send(string msg)
@@ -329,10 +416,8 @@ namespace InscryptionMP
                 TryFindPeer(me);
                 if (_peer.IsValid())
                 {
-                    Connected = true;
-                    Status = "connected to " + SteamFriends.GetFriendPersonaName(_peer);
                     Trace.Info("[steam] opponent joined");
-                    Net.SendHello();
+                    NotePeerArrived(_peer);
                 }
             }
 
@@ -387,13 +472,15 @@ namespace InscryptionMP
 
         public static void Shutdown()
         {
+            SetJoinable(true);   // leave nothing half-closed behind us
             if (_peer.IsValid()) SteamNetworking.CloseP2PSessionWithUser(_peer);
             if (_lobby.IsValid() && Available) SteamMatchmaking.LeaveLobby(_lobby);
             _lobby = CSteamID.Nil;
             Reset();
             Active = false;
             IsHost = false;
-            Status = "idle";
+            Lobbies.Clear();
+            SetStatus("idle");
             Trace.Info("[steam] shut down");
         }
     }

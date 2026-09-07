@@ -24,20 +24,6 @@ namespace InscryptionMP
         /// </summary>
         private static string DeckTableScene => ActInfo.SceneFor(MatchAct.Act1);
 
-        /// <summary>Human-readable reason a match can't start right now, or null if it can.</summary>
-        public static string Blocker
-        {
-            get
-            {
-                if (Net.HandshakeError != null) return Net.HandshakeError;
-                if (!Net.Connected) return "no peer connected";
-                if (InMatch)        return null;
-                if (PendingStart)   return "loading...";
-                if (!DeckStore.IsValid) return $"deck needs {DeckStore.MinCards}-{DeckStore.MaxCards} cards";
-                return null;
-            }
-        }
-
         /// <summary>
         /// Entry point that works from anywhere, including the main menu. If we're not in
         /// the Act 1 scene yet, load it and start the match once its singletons exist.
@@ -76,6 +62,10 @@ namespace InscryptionMP
             Trace.Info($"[versus] act for this match: {ActInfo.Name(ActInfo.Current)}");
 
             DeckStore.Save();   // don't lose a deck because they forgot to press Save
+
+            // The agreed match is happening, so the agreement is spent. A rematch has to be
+            // asked for again rather than firing the instant the menu comes back.
+            Lobby.NoteMatchStarting();
 
             if (tellPeer)
             {
@@ -444,6 +434,9 @@ namespace InscryptionMP
         /// <summary>Last match result, shown in the overlay until the next match.</summary>
         public static string LastResult { get; private set; }
 
+        /// <summary>Drops the result when a different opponent turns up. See Lobby.</summary>
+        internal static void ForgetLastResult() => LastResult = null;
+
         /// <summary>True while a match is paused waiting for a dropped peer to return.</summary>
         public static bool Suspended { get; private set; }
 
@@ -493,9 +486,11 @@ namespace InscryptionMP
         {
             if (!InMatch) return;
 
-            LastResult = playerWon ? "you won" : "you lost";
-            if (playerWon) Notice.Good("You won.");
-            else Notice.Say("You lost.");
+            // Worded to match the notice exactly. The panel shows the result and the notice
+            // shows the result, and two near-identical lines a row apart reads as a bug.
+            LastResult = playerWon ? "You won" : "You lost";
+            if (playerWon) Notice.Good(LastResult);
+            else Notice.Say(LastResult);
             Trace.Info($"[versus] match over - {LastResult} ({reason})");
 
             Net.Send(playerWon ? Protocol.Lost : Protocol.Won);   // their result is our inverse

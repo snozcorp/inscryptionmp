@@ -62,7 +62,6 @@ namespace InscryptionMP
             Shutdown();
             TcpIsHost = true;
             _running = true;
-            Notice.Busy($"Waiting for someone to connect on port {port}...");
             _thread = new Thread(() => HostLoop(port)) { IsBackground = true, Name = "InscryptionMP-Host" };
             _thread.Start();
             Trace.Info($"[net] hosting on port {port}, waiting for peer...");
@@ -81,7 +80,6 @@ namespace InscryptionMP
             _running = true;
             _thread = new Thread(() => JoinLoop(host, port)) { IsBackground = true, Name = "InscryptionMP-Client" };
             _thread.Start();
-            Notice.Busy($"Connecting to {host}:{port}...");
             Trace.Info($"[net] connecting to {host}:{port}...");
         }
 
@@ -97,7 +95,6 @@ namespace InscryptionMP
                 while (_running)
                 {
                     _client = _listener.AcceptTcpClient();
-                    Notice.Good("Opponent connected.");
                     Trace.Info("[net] peer connected.");
                     Pump();
                     TcpConnected = false;
@@ -120,7 +117,6 @@ namespace InscryptionMP
                     {
                         _client = new TcpClient();
                         _client.Connect(host, port);
-                        Notice.Good("Connected.");
                         Trace.Info("[net] connected to host.");
                         Pump();
                         TcpConnected = false;
@@ -191,6 +187,9 @@ namespace InscryptionMP
         /// <summary>Whether the peer understands the richer protocol 3 messages.</summary>
         public static bool PeerSpeaksV3 => PeerProtocol >= 3;
 
+        /// <summary>Whether the peer can take part in the lobby vote.</summary>
+        public static bool PeerSpeaksV4 => PeerProtocol >= 4;
+
         /// <summary>Set when the peer asks us to start a match.</summary>
         public static MatchAct? PendingStartRequest { get; set; }
 
@@ -260,6 +259,20 @@ namespace InscryptionMP
                 return true;
             }
 
+            // Lobby chatter never belongs in the match inbox: it arrives while no battle is
+            // running, and the opponent's turn loop would just discard it.
+            if (Protocol.TryParseVote(line, out MatchAct votedAct))
+            {
+                Lobby.NotePeerAct(votedAct);
+                return true;
+            }
+
+            if (Protocol.TryParseReady(line, out bool peerReady))
+            {
+                Lobby.NotePeerReady(peerReady);
+                return true;
+            }
+
             if (line == Protocol.Won)  { PendingResult = false; return true; }   // peer won, so we lost
             if (line == Protocol.Lost) { PendingResult = true;  return true; }
 
@@ -311,6 +324,11 @@ namespace InscryptionMP
         {
             HandshakeError = null;
             PeerVerified = false;
+
+            // A new peer starts the negotiation over: whatever the last one voted for, or
+            // committed to, says nothing about this one. Done here rather than on a
+            // Connected edge so it cannot land after their first vote has already arrived.
+            Lobby.ResetForNewPeer();
             Send(Protocol.Hello);
         }
 
@@ -358,6 +376,7 @@ namespace InscryptionMP
             HandshakeError = null;
             PeerVerified = false;
             PeerProtocol = Protocol.Version;
+            Lobby.Reset();
             _writer = null; _client = null; _listener = null;
         }
     }

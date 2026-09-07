@@ -105,6 +105,55 @@ namespace InscryptionMP
             Trace.Info($"[deck] switched to {ActInfo.Name(_cachedFor)} deck and pool");
         }
 
+        /// <summary>
+        /// Card counts for acts other than the selected one, so the act buttons can show all
+        /// three at once. Loading each act's deck in turn would blow the cache every frame.
+        /// </summary>
+        private static readonly Dictionary<MatchAct, int> Counts = new Dictionary<MatchAct, int>();
+
+        /// <summary>
+        /// How many cards this act's saved deck holds, or -1 if it has never been saved.
+        /// The selected act answers from the live deck; the others are read off disk once.
+        /// </summary>
+        public static int CountFor(MatchAct act)
+        {
+            if (act == ActInfo.Selected) return Deck.Count;
+
+            int n;
+            if (Counts.TryGetValue(act, out n)) return n;
+            n = CountOnDisk(act);
+            Counts[act] = n;
+            return n;
+        }
+
+        private static int CountOnDisk(MatchAct act)
+        {
+            try
+            {
+                string path = PathFor(act);
+                if (!File.Exists(path)) return -1;
+
+                int n = 0;
+                foreach (string raw in File.ReadAllLines(path))
+                {
+                    string line = raw.Trim();
+                    if (line.Length > 0 && !line.StartsWith("#")) n++;
+                }
+                return n;
+            }
+            catch (Exception e)
+            {
+                Trace.Warn($"[deck] could not count the {ActInfo.Name(act)} deck: {e.Message}");
+                return -1;
+            }
+        }
+
+        private static string PathFor(MatchAct act)
+        {
+            string dir = BepInEx.Paths.ConfigPath ?? ".";
+            return System.IO.Path.Combine(dir, "inscryptionmp-deck" + ActInfo.DeckSuffix(act) + ".txt");
+        }
+
         private static string Path
         {
             get
@@ -188,6 +237,7 @@ namespace InscryptionMP
             try
             {
                 File.WriteAllLines(Path, Deck.ToArray());
+                Counts.Clear();   // the numbers on the act buttons just moved
                 Trace.Info($"[deck] saved {Deck.Count} cards");
             }
             catch (Exception e)

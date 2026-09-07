@@ -9,10 +9,15 @@ Auto mode (default): whenever the game passes the turn (sends END), the peer pla
 card and passes back. That lets a full match be played end to end without anyone
 hand-feeding turns.
 
-Manual mode (--manual): append lines to .tmp/outbox.txt and they get sent.
+The peer also takes part in the lobby negotiation the way a second game would: it
+mirrors whichever act the game votes for and presses start once the game has, so a
+match can be brought up end to end from one machine.
 
-    python tools/peer.py
-    python tools/peer.py --manual
+    python tools/peer.py                 # agree with everything, start when they do
+    python tools/peer.py --act 2         # insist on Act 2, to see a disagreement
+    python tools/peer.py --wait          # never press start, to see 1/2 hold
+    python tools/peer.py --legacy        # greet as protocol 3, to see the fallback
+    python tools/peer.py --manual        # feed lines from .tmp/outbox.txt by hand
 """
 import os
 import socket
@@ -25,6 +30,9 @@ OUTBOX = os.path.join(".tmp", "outbox.txt")
 INBOX = os.path.join(".tmp", "inbox.log")
 
 AUTO_CARDS = ["Stoat", "Bullfrog", "Wolf", "Adder"]
+
+PROTOCOL = 4
+MOD_VERSION = "1.4.0"
 
 
 def log_in(line):
@@ -39,9 +47,10 @@ def send(writer, msg, tag=""):
     print(f"-> {msg}{tag}", flush=True)
 
 
-def reader(sock, writer, auto):
+def reader(sock, writer, auto, opts):
     f = sock.makefile("r", encoding="utf-8", newline="\n")
     turn = 0
+    ready = False
     for line in f:
         line = line.strip()   # game sends CRLF; a stray CR breaks equality checks
         if not line:
@@ -50,11 +59,42 @@ def reader(sock, writer, auto):
 
         if line.startswith("OVER"):
             print(f"*** MATCH OVER - peer reports: {line} ***", flush=True)
+            ready = False
             continue
 
         # Greet back, so the client can verify us like a real peer would.
         if line.startswith("HELLO"):
-            send(writer, "HELLO 3 1.2.0", "  (auto)")
+            if opts["legacy"]:
+                send(writer, "HELLO 3 1.2.0", "  (auto)")
+                continue
+            send(writer, f"HELLO {PROTOCOL} {MOD_VERSION}", "  (auto)")
+            send(writer, f"VOTE {opts['act'] or 1}", "  (auto)")
+            send(writer, "READY 0", "  (auto)")
+            continue
+
+        if line.startswith("START "):
+            print(f"*** MATCH STARTING - {line} ***", flush=True)
+            ready = False
+            continue
+
+        if line.startswith("VOTE ") and not opts["legacy"]:
+            # Agree by default, so a match can be brought up from one machine. --act
+            # pins us to one instead, which is how you see a 1/2 disagreement.
+            want = opts["act"] or line.split(" ", 1)[1].strip()
+            send(writer, f"VOTE {want}", "  (auto)")
+            continue
+
+        if line.startswith("READY ") and not opts["legacy"]:
+            theirs = line.split(" ", 1)[1].strip() == "1"
+            if opts["wait"]:
+                continue
+            if theirs and not ready:
+                time.sleep(0.5)
+                ready = True
+                send(writer, "READY 1", "  (auto)")
+            elif not theirs and ready:
+                ready = False
+                send(writer, "READY 0", "  (auto)")
             continue
 
         if auto and line == "END":
@@ -85,28 +125,58 @@ def main():
     open(INBOX, "w").close()
 
     auto = "--manual" not in sys.argv
+    opts = {
+        "legacy": "--legacy" in sys.argv,
+        "wait": "--wait" in sys.argv,
+        "act": sys.argv[sys.argv.index("--act") + 1] if "--act" in sys.argv else None,
+    }
 
-    print(f"connecting to {HOST}:{PORT} ...", flush=True)
-    sock = socket.create_connection((HOST, PORT), timeout=15)
-    sock.settimeout(None)  # connect timeout must not linger on recv
-    print(f"CONNECTED - auto-play {'ON' if auto else 'OFF'}", flush=True)
-
-    writer = sock.makefile("w", encoding="utf-8", newline="\n")
-    threading.Thread(target=reader, args=(sock, writer, auto), daemon=True).start()
-
-    sent = 0
-    try:
+    # Wait for the game rather than requiring it to be hosting first, and go back to
+    # waiting when it goes away. Testing means restarting the game over and over, and a
+    # peer that has to be restarted alongside it is a worse tool than one that waits.
+    while True:
+        print(f"waiting for {HOST}:{PORT} ...", flush=True)
         while True:
-            with open(OUTBOX, "r", encoding="utf-8") as f:
-                lines = [l.rstrip("\n") for l in f if l.strip()]
-            while sent < len(lines):
-                send(writer, lines[sent])
-                sent += 1
-            time.sleep(0.25)
-    except (KeyboardInterrupt, BrokenPipeError, OSError) as e:
-        print(f"peer closing: {e}", flush=True)
-    finally:
+            try:
+                sock = socket.create_connection((HOST, PORT), timeout=5)
+                break
+            except KeyboardInterrupt:
+                return
+            except OSError:
+                time.sleep(1.0)
+
+        sock.settimeout(None)  # connect timeout must not linger on recv
+        print(f"CONNECTED - auto-play {'ON' if auto else 'OFF'}", flush=True)
+
+        link = threading.Thread(
+            target=reader,
+            args=(sock, sock.makefile("w", encoding="utf-8", newline="\n"), auto, opts),
+            daemon=True)
+        link.start()
+
+        try:
+            pump_outbox(sock, link)
+        except KeyboardInterrupt:
+            sock.close()
+            return
+        except (BrokenPipeError, OSError) as e:
+            print(f"peer disconnected: {e}", flush=True)
+
         sock.close()
+        print("--- game went away; waiting for it to come back ---", flush=True)
+
+
+def pump_outbox(sock, link):
+    """Sends anything appended to the outbox, until the link to the game drops."""
+    writer = sock.makefile("w", encoding="utf-8", newline="\n")
+    sent = 0
+    while link.is_alive():
+        with open(OUTBOX, "r", encoding="utf-8") as f:
+            lines = [l.rstrip("\n") for l in f if l.strip()]
+        while sent < len(lines):
+            send(writer, lines[sent])
+            sent += 1
+        time.sleep(0.25)
 
 
 if __name__ == "__main__":

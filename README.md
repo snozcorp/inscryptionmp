@@ -52,24 +52,30 @@ speaks an older one's dialect rather than refusing it:
 
 | Your build | Plays against |
 |---|---|
-| 1.3.x | 1.3.x, and 1.1.x–1.2.x without the newer extras |
-| 1.1.x–1.2.x | each other, and 1.3.x |
+| 1.4.x | 1.4.x, and 1.1.x–1.3.x without the newer extras |
+| 1.3.x | 1.3.x–1.4.x, and 1.1.x–1.2.x without the newer extras |
+| 1.1.x–1.2.x | each other, and 1.3.x–1.4.x |
 | 1.0.x | nothing newer |
 
-Against a pre-1.3 peer you lose stat corrections, synced sigils and Sniper aiming — the
-match works, there is just information their client never sends. 1.0.x is refused outright
-because it predates act negotiation, so the two clients would load different scenes.
-Mismatches are reported at the handshake, not halfway into a match.
+Against a pre-1.4 peer there is no lobby vote — they cannot send one — so the panel falls
+back to the older rule where either player starts and both are pulled in. Against a pre-1.3
+peer you also lose stat corrections, synced sigils and Sniper aiming; the match works,
+there is just information their client never sends. 1.0.x is refused outright because it
+predates act negotiation, so the two clients would load different scenes. Mismatches are
+reported at the handshake, not halfway into a match.
 
 ## Playing
 
 1. One player clicks **Host Lobby**, the other clicks **Find Games** and picks the lobby.
-2. Pick an **act**. The host's choice decides the table; the other client follows it
-   and uses its deck for that act.
-3. Either player clicks **START MATCH** — both clients enter a match together.
+   The list keeps itself up to date while it is open, a lobby with two people in it stops
+   being offered to anyone else, and picking one sets your act vote to the act it advertises.
+2. Both players pick an **act**. The tally under the buttons says who wants what; the
+   match can only be the one you both chose, and each of you plays your own deck for it.
+3. Both players click **START MATCH**. The first click commits you and says so — `1/2` —
+   and the match loads once the second one lands. Clicking again takes it back.
 4. The host takes the first turn. Ring the bell to pass.
 
-**F7** menu · **F8** start match · **F12** abort out of anything
+**F7** menu · **F8** ready up · **F12** abort out of anything
 
 ## Deck building
 

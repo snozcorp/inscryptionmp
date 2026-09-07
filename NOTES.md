@@ -113,10 +113,12 @@ Transport is plain TCP, newline-delimited text. It's turn-based: ordering matter
 latency does not. The protocol is human-readable so the log is the debugger.
 
 ## Wire protocol
-Protocol 3. Newline-delimited text, human-readable so the log is the debugger.
+Protocol 4. Newline-delimited text, human-readable so the log is the debugger.
 
 ```
 HELLO <proto> <modVersion>    greeting; both sides send it on connect
+VOTE <act>                    which act the sender wants to play
+READY 0 | READY 1             whether the sender has committed to starting it
 START <act>                   begin a match on act 1, 2 or 3
 PLAY <cardName> <slotIndex>   peer played a card into their player slot N
 SAC <slotIndex>               peer sacrificed the card in that slot
@@ -131,10 +133,23 @@ appended when the card has gained any. Names alone were not enough: both clients
 combat independently and usually agree, but nothing corrected them when they didn't, so a
 buffed or damaged card kept different numbers on each screen for the rest of the match.
 
+`VOTE` and `READY` are the lobby negotiation, and they are the only messages that matter
+while no battle is running. Both are captured out of band, like results: they arrive
+between matches, and the opponent turn loop would only discard them. Both sides announce
+their vote and their (un)readiness once per connection and again whenever either changes;
+the host is the one that sends `START` when the two agree and both are ready, because if
+both sent it the two messages would cross and each client would try to start a match it
+was already starting.
+
 **Older peers are not shut out.** The handshake carries the protocol version, so a client
-that speaks 3 writes protocol 2 messages to a peer that speaks 2 and goes without the
-extras. Only protocol 1 is refused, and for a real reason: it predates `START <act>`, so
-one side would load Act 1's cabin while the other loaded Act 3's board.
+that speaks 4 writes protocol 2 messages to a peer that speaks 2 and goes without the
+extras. A peer that cannot vote falls back to the pre-4 rule — either player starts and
+both are pulled in — but *only* when their own greeting says so. An earlier version gave up
+on a silent peer after eight seconds, which meant one dropped packet quietly turned the
+start button back into one that drags them into a match they never agreed to; waiting
+forever is the safe failure, and the two-second re-announce is what makes waiting rare.
+Only protocol 1 is refused, and for a real reason: it predates `START <act>`, so one side
+would load Act 1's cabin while the other loaded Act 3's board.
 
 ## Status
 - [x] Environment recon, decompile, battle state machine mapped
@@ -150,6 +165,7 @@ one side would load Act 1's cabin while the other loaded Act 3's board.
 - [x] Sniper aimed by the client that owns the card
 - [x] Player-chosen sigils on deck cards
 - [x] A multiplayer card on the title screen
+- [x] Both players vote on the act and both commit before a match loads
 
 ## Known gaps / next
 - Acts 2 and 3 have now been played between two real clients, but with far fewer hours on
@@ -165,11 +181,16 @@ one side would load Act 1's cabin while the other loaded Act 3's board.
 Steam won't happily run two instances, so `tools/peer.py` speaks our protocol directly:
 
 1. Launch the game (BepInEx is installed; it loads automatically).
-2. **Press F9 to host BEFORE entering a battle.** `OpponentInjector` only swaps in
+2. **F7 → Direct connect → Host**, before anything else. `OpponentInjector` only swaps in
    `NetworkOpponent` if `Net.Connected` is true at `SpawnOpponent` time.
-3. Walk into any Act 1 combat node.
-4. `python tools/peer.py Wolf:1 Adder:2`
-5. Watch `BepInEx/LogOutput.log` for `[opp] placing peer card`.
+3. `python tools/peer.py` — it greets as a protocol 4 client, mirrors whichever act you
+   vote for, and presses start once you have, so the whole negotiation runs from one
+   machine. `--act 2` pins it to Act 2 to see a 1/2 disagreement, `--wait` makes it never
+   press start, and `--legacy` makes it greet as protocol 3 to exercise the fallback. It
+   can be started before the game and left running across restarts; it waits for the
+   listener and goes back to waiting when the game closes.
+4. Press START MATCH. The panel should hold at 1/2 for half a second, then load.
+5. Watch `BepInEx/mp-trace.log` for `[lobby]` lines and `[opp] placing peer card`.
 
 Verified-valid card names: Wolf, Adder, Bullfrog, Squirrel, Stoat, Grizzly.
 

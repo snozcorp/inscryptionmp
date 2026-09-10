@@ -69,6 +69,18 @@ namespace InscryptionMP
             return false;
         }
 
+        /// <summary>
+        /// The pause menu's "quit" goes straight here, around every transition this class
+        /// blocks. Our own exits set InMatch false before calling it, so this only ever
+        /// catches the routes we did not take.
+        /// </summary>
+        [HarmonyPatch(typeof(MenuController), nameof(MenuController.ReturnToStartScreen))]
+        [HarmonyPrefix]
+        private static void LeavingByTheOtherDoor()
+        {
+            VersusMode.NoteLeftByGame("the game returned to the start screen");
+        }
+
         private static IEnumerator Nothing()
         {
             yield break;

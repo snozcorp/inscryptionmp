@@ -125,6 +125,13 @@ namespace InscryptionMP
                     VersusMode.Finish(this, weWon, "peer reported the result");
             }
 
+            // Whatever route was taken, a match without a battle behind it is over. The
+            // patch above catches the pause menu; this catches anything else that leaves
+            // the scene, rather than leaving the score bar on screen forever.
+            if (VersusMode.InMatch && !VersusMode.PendingStart
+                && Singleton<TurnManager>.Instance == null)
+                VersusMode.NoteLeftByGame("the battle is no longer loaded");
+
             // A drop suspends the match rather than forfeiting it; the transports keep
             // trying to re-establish underneath.
             if (VersusMode.InMatch && !Net.Connected) VersusMode.NoteDisconnected();

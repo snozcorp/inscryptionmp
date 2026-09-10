@@ -92,6 +92,16 @@ different one.
 stats on it, and there is now a check right before a card is dealt as well as when the deck
 loads. Ant and Skink are the ones you would have noticed.
 
+**Quitting a match through the pause menu left the mod holding it.** The game's own way out
+goes straight to the start screen, around everything the mod hooks, so nothing told it the
+match was over - the score bar stayed on the title screen and the opponent was left waiting
+for a turn that was never coming. Now any route out of a battle ends the match and concedes
+it, whether the mod was asked or not.
+
+**Nobody is called nothing.** Steam hands back a name made of invisible characters when its
+API never initialised, which drew as an empty gap where a player should be. A name with
+nothing readable in it is refused, and the seat falls back to Host or Guest.
+
 **Smaller things.** A twenty-first card now says the deck is full instead of doing nothing.
 The GBC board took its colour from your deck's temple and got Nature every time once any card
 in that deck carried a sigil. Hosting, cancelling and hosting again in quick succession could

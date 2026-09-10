@@ -79,7 +79,19 @@ namespace InscryptionMP
             foreach (char c in text)
             {
                 if (c == '\n' || c == '\r' || c == '\t') { sb.Append(' '); continue; }
-                if (char.IsControl(c)) continue;
+                if (char.IsControl(c) || char.IsSurrogate(c)) continue;
+
+                // Format, private-use and unassigned code points draw as nothing, so
+                // a name made of them is an empty gap where a player should be. Steam
+                // hands back exactly that when its API never initialised.
+                switch (global::System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c))
+                {
+                    case global::System.Globalization.UnicodeCategory.Format:
+                    case global::System.Globalization.UnicodeCategory.PrivateUse:
+                    case global::System.Globalization.UnicodeCategory.OtherNotAssigned:
+                        continue;
+                }
+
                 sb.Append(c);
             }
 
@@ -130,7 +142,7 @@ namespace InscryptionMP
         }
 
         /// <summary>A note from the mod itself - who joined, who left.</summary>
-        public static void System(string text)
+        public static void Note(string text)
         {
             Add(new Line { Who = "", Text = text, At = Now, System = true });
         }
@@ -171,13 +183,13 @@ namespace InscryptionMP
             {
                 try
                 {
-                    if (_chosen != null && !string.IsNullOrEmpty(_chosen.Value))
-                        return Trim(Chat.Clean(_chosen.Value));
+                    string chosen = _chosen == null ? null : Chat.Clean(_chosen.Value);
+                    if (Readable(chosen)) return Trim(chosen);
 
                     if (SteamTransport.Available)
                     {
-                        string name = Steamworks.SteamFriends.GetPersonaName();
-                        if (!string.IsNullOrEmpty(name)) return Trim(Chat.Clean(name));
+                        string name = Chat.Clean(Steamworks.SteamFriends.GetPersonaName());
+                        if (Readable(name)) return Trim(name);
                     }
                 }
                 catch (Exception e)
@@ -193,6 +205,18 @@ namespace InscryptionMP
 
         private const int MaxName = 24;
 
+        /// <summary>
+        /// Whether a name would actually show up. Something with no letter or digit in
+        /// it is a blank space on the score bar rather than a player.
+        /// </summary>
+        private static bool Readable(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return false;
+            foreach (char c in name)
+                if (char.IsLetterOrDigit(c)) return true;
+            return false;
+        }
+
         /// <summary>What the opponent calls themselves, once they have said.</summary>
         public static string PeerName => string.IsNullOrEmpty(_peer) ? "Opponent" : _peer;
 
@@ -201,7 +225,12 @@ namespace InscryptionMP
         public static void NotePeerName(string name)
         {
             string clean = Chat.Clean(name);
-            if (clean.Length == 0) return;
+            if (!Readable(clean))
+            {
+                Trace.Warn("[player] the opponent's name has nothing readable in it - "
+                           + $"keeping '{PeerName}'");
+                return;
+            }
 
             _peer = Trim(clean);
             Trace.Info($"[player] opponent is {_peer}");

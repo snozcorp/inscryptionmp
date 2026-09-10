@@ -538,6 +538,31 @@ namespace InscryptionMP
             MenuController.ReturnToStartScreen();   // also clears savingDisabled
         }
 
+        /// <summary>
+        /// The game has left the battle without going through us - the pause menu's own
+        /// way out, or anything else that drops us back at the title. Everything Abort
+        /// does except sending us back, because we are already on our way.
+        ///
+        /// Without this the mod goes on believing a match is running: the score bar stays
+        /// on the title screen, and the opponent waits for a turn that is never coming.
+        /// </summary>
+        internal static void NoteLeftByGame(string how)
+        {
+            if (!InMatch && !PendingStart) return;
+
+            Trace.Warn($"[versus] left the battle without us ({how}) - ending the match");
+            if (InMatch) Net.Send(Protocol.YouWon);   // walking out is conceding
+
+            InMatch = false;
+            Suspended = false;
+            Net.Reconnecting = false;
+            PendingStart = false;
+            Match.Reset();
+            RestoreCampaignRun();
+            TableProps.RestorePlayerMarker();
+            Notice.Say("Left the match.");
+        }
+
         /// <summary>Escape hatch: always available, always gets the player out.</summary>
         public static void Abort(MonoBehaviour host)
         {

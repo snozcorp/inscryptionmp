@@ -20,6 +20,7 @@ ACT=1
 DRAW=order
 RULES=""
 EXPECT=""
+LEAVE=""
 TURNS=4
 HOST_TURNS=""
 JOIN_TURNS=""
@@ -42,6 +43,7 @@ while [ $# -gt 0 ]; do
     --deck)     DECK_A="$2"; DECK_B="$2"; shift 2 ;;
     --deck-a)   DECK_A="$2"; shift 2 ;;
     --deck-b)   DECK_B="$2"; shift 2 ;;
+    --leave)    LEAVE="$2"; shift 2 ;;
     --no-build) BUILD=0; shift ;;
     *) echo "unknown option: $1"; exit 2 ;;
   esac
@@ -86,6 +88,7 @@ launch() {   # launch <dir> <mode> <deck> <turns>
   INSCRYPTIONMP_AUTOPILOT_DRAW="$DRAW" \
   INSCRYPTIONMP_AUTOPILOT_RULES="$RULES" \
   INSCRYPTIONMP_AUTOPILOT_EXPECT="$EXPECT" \
+  INSCRYPTIONMP_AUTOPILOT_LEAVE="$LEAVE" \
   INSCRYPTIONMP_AUTOPILOT_DECK="$deck" \
   INSCRYPTIONMP_AUTOPILOT_TURNS="$turns" \
   INSCRYPTIONMP_AUTOPILOT_QUIT=1 \

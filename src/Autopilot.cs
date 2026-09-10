@@ -37,6 +37,23 @@ namespace InscryptionMP
 
         /// <summary>What the locked rules must come out as, on both clients.</summary>
         public static string Expect { get; private set; }
+
+        /// <summary>
+        /// How long to sit in the lobby before committing. Nothing needs it to play, but a
+        /// recording does: with both clients readying the instant they connect, 1/2 never
+        /// appears on screen long enough to see.
+        /// </summary>
+        public static float ReadyDelay { get; private set; }
+
+        /// <summary>Opens the panel once connected, so the lobby is on screen to be filmed.</summary>
+        public static bool ShowPanel { get; private set; }
+
+        /// <summary>
+        /// How to leave at the end. "game" walks out the way the pause menu does, straight
+        /// to the start screen without telling the mod - which is how a match used to be
+        /// left running with its score bar still on the title screen.
+        /// </summary>
+        public static string Leave { get; private set; }
         public static string[] Deck { get; private set; }
         public static int MaxTurns { get; private set; } = 8;
         public static bool QuitWhenDone { get; private set; }
@@ -78,8 +95,17 @@ namespace InscryptionMP
             Draw = Env("INSCRYPTIONMP_AUTOPILOT_DRAW");
             Hold = Env("INSCRYPTIONMP_AUTOPILOT_HOLD");
             RulesPayload = Env("INSCRYPTIONMP_AUTOPILOT_RULES");
+
+            float seconds;
+            if (float.TryParse(Env("INSCRYPTIONMP_AUTOPILOT_READY_DELAY") ?? "",
+                               System.Globalization.NumberStyles.Float,
+                               System.Globalization.CultureInfo.InvariantCulture, out seconds)
+                && seconds > 0f)
+                ReadyDelay = seconds;
             Expect = Env("INSCRYPTIONMP_AUTOPILOT_EXPECT");
             QuitWhenDone = Env("INSCRYPTIONMP_AUTOPILOT_QUIT") == "1";
+            ShowPanel = Env("INSCRYPTIONMP_AUTOPILOT_SHOW_PANEL") == "1";
+            Leave = Env("INSCRYPTIONMP_AUTOPILOT_LEAVE");
 
             string deck = Env("INSCRYPTIONMP_AUTOPILOT_DECK");
             if (deck != null) Deck = deck.Split(',');
@@ -137,6 +163,7 @@ namespace InscryptionMP
 
             Report(true, "connected");
             Lobby.ChooseAct(Act);
+            if (ShowPanel) MpMenu.OpenFromMenuCard();
 
             yield return WaitUntil(() => Lobby.CanReady, 60f, "the lobby to be startable");
             if (!Lobby.CanReady)
@@ -163,6 +190,7 @@ namespace InscryptionMP
 
             yield return PlayMatch(plugin);
             CheckTalking();
+            yield return CheckLeaving();
             Finish(true, "run complete");
         }
 
@@ -257,6 +285,12 @@ namespace InscryptionMP
         /// </summary>
         private static IEnumerator Commit(MonoBehaviour plugin)
         {
+            if (ReadyDelay > 0f)
+            {
+                Trace.Info($"[auto] sitting in the lobby for {ReadyDelay}s before committing");
+                yield return new WaitForSeconds(ReadyDelay);
+            }
+
             float deadline = Time.realtimeSinceStartup + 120f;
 
             while (!VersusMode.InMatch && !VersusMode.PendingStart
@@ -344,6 +378,27 @@ namespace InscryptionMP
             bool weShouldStart = Net.IsHost ? !live.GuestFirst : live.GuestFirst;
             Report(TurnOrder.IsMyTurn == weShouldStart,
                    $"the right player has the first turn (ours={TurnOrder.IsMyTurn}, rule says {weShouldStart})");
+        }
+
+        /// <summary>
+        /// Leaves by the game's own door and checks the mod noticed. The pause menu calls
+        /// MenuController.ReturnToStartScreen directly, around everything the mod hooks, so
+        /// nothing told it the match was over.
+        /// </summary>
+        private static IEnumerator CheckLeaving()
+        {
+            if (Leave != "game") yield break;
+            if (!VersusMode.InMatch)
+            {
+                Trace.Info("[auto] match already over - nothing to walk out of");
+                yield break;
+            }
+
+            Trace.Info("[auto] leaving the way the pause menu does");
+            MenuController.ReturnToStartScreen();
+            yield return new WaitForSeconds(2.5f);
+
+            Report(!VersusMode.InMatch, "the match ended when the game left the battle");
         }
 
         /// <summary>Both directions of the chat, which is only provable from both ends.</summary>

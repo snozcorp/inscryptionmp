@@ -218,7 +218,7 @@ namespace InscryptionMP
 
             foreach (string name in _deck)
             {
-                CardInfo info = CardLoader.GetCardByName(BaseName(name));
+                CardInfo info = Cards.ByName(BaseName(name));
                 if (info != null && CanUseInDeck(info)) kept.Add(name);
                 else dropped.Add(name);
             }
@@ -230,6 +230,28 @@ namespace InscryptionMP
             // unrecoverable - the file is re-pruned on every load anyway.
             _deck = kept;
             Trace.Warn($"[deck] ignoring {dropped.Count} card(s) not usable in {ActInfo.Name(ActInfo.Selected)}: {string.Join(", ", dropped)}");
+        }
+
+        /// <summary>
+        /// Keeps a copy of this act's deck file the first time something replaces it
+        /// wholesale, which only the autopilot does. A test run does not get to lose
+        /// somebody's deck.
+        /// </summary>
+        internal static void BackUpOnce()
+        {
+            try
+            {
+                string path = Path;
+                string backup = path + ".pre-autopilot";
+                if (!File.Exists(path) || File.Exists(backup)) return;
+
+                File.Copy(path, backup);
+                Trace.Info($"[deck] kept the existing {ActInfo.Name(ActInfo.Selected)} deck at {backup}");
+            }
+            catch (Exception e)
+            {
+                Trace.Warn($"[deck] could not keep a copy of the deck: {e.Message}");
+            }
         }
 
         public static void Save()
@@ -247,11 +269,31 @@ namespace InscryptionMP
             }
         }
 
-        public static void Add(string cardName)
+        /// <summary>Returns false when the deck is already as big as it may be.</summary>
+        public static bool Add(string cardName)
         {
-            if (Deck.Count >= MaxCards) return;
+            if (Deck.Count >= MaxCards) return false;
             Deck.Add(cardName);
             Match.Reset();
+            return true;
+        }
+
+        /// <summary>
+        /// Moves one entry along by a place. Order is the order cards are drawn in when the
+        /// match is played that way, so it is worth being able to set.
+        /// </summary>
+        public static bool Move(int index, int delta)
+        {
+            int target = index + delta;
+            if (index < 0 || index >= Deck.Count) return false;
+            if (target < 0 || target >= Deck.Count) return false;
+
+            string entry = Deck[index];
+            Deck.RemoveAt(index);
+            Deck.Insert(target, entry);
+            Match.Reset();
+            Save();
+            return true;
         }
 
         /// <summary>
@@ -306,6 +348,7 @@ namespace InscryptionMP
 
                     int rejected = all.Count(c => c != null && !IsOfferedInPool(c));
                     Trace.Info($"[deck] card pool: {_pool.Count} cards ({rejected} excluded as unrenderable here)");
+                    LogPlayableButUnoffered(all);
                 }
                 catch (Exception e)
                 {
@@ -352,12 +395,39 @@ namespace InscryptionMP
         private static bool IsOfferedInPool(CardInfo c)
         {
             if (!CanUseInDeck(c)) return false;
+
+            // A card the act plainly deals in but never *offers* - the squirrel pile is
+            // the whole example. Checked before the categories because it is exactly the
+            // case they get wrong.
+            foreach (string name in ActInfo.AlwaysOffered(ActInfo.Selected))
+                if (c.name == name) return true;
+
             if (c.metaCategories == null) return false;
 
             foreach (CardMetaCategory cat in ActInfo.OfferedCategories(ActInfo.Selected))
                 if (c.metaCategories.Contains(cat)) return true;
 
             return false;
+        }
+
+        /// <summary>
+        /// Cards this act could draw and pay for, that nothing marks as offerable. Squirrels
+        /// sat in here for four releases without anyone being able to see why, so the pool
+        /// now says what it left out rather than only how much.
+        /// </summary>
+        private static void LogPlayableButUnoffered(List<CardInfo> all)
+        {
+            var names = all.Where(c => c != null && CanUseInDeck(c) && !IsOfferedInPool(c))
+                           .Select(c => c.name)
+                           .OrderBy(n => n)
+                           .ToList();
+
+            if (names.Count == 0) return;
+
+            const int cap = 60;
+            string list = string.Join(", ", names.Take(cap).ToArray());
+            if (names.Count > cap) list += $", ... (+{names.Count - cap} more)";
+            Trace.Info($"[deck] playable here but not offered ({names.Count}): {list}");
         }
     }
 }

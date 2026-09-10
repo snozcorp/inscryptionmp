@@ -17,6 +17,7 @@ match can be brought up end to end from one machine.
     python tools/peer.py --act 2         # insist on Act 2, to see a disagreement
     python tools/peer.py --wait          # never press start, to see 1/2 hold
     python tools/peer.py --legacy        # greet as protocol 3, to see the fallback
+    python tools/peer.py --proto 4       # greet as protocol 4: no match rules
     python tools/peer.py --manual        # feed lines from .tmp/outbox.txt by hand
 """
 import os
@@ -31,8 +32,8 @@ INBOX = os.path.join(".tmp", "inbox.log")
 
 AUTO_CARDS = ["Stoat", "Bullfrog", "Wolf", "Adder"]
 
-PROTOCOL = 4
-MOD_VERSION = "1.4.0"
+PROTOCOL = 5
+MOD_VERSION = "1.5.0"
 
 
 def log_in(line):
@@ -64,12 +65,19 @@ def reader(sock, writer, auto, opts):
 
         # Greet back, so the client can verify us like a real peer would.
         if line.startswith("HELLO"):
-            if opts["legacy"]:
-                send(writer, "HELLO 3 1.2.0", "  (auto)")
+            proto = opts["proto"]
+            if proto < 4:
+                send(writer, f"HELLO {proto} 1.2.0", "  (auto)")
                 continue
-            send(writer, f"HELLO {PROTOCOL} {MOD_VERSION}", "  (auto)")
+            send(writer, f"HELLO {proto} {MOD_VERSION}", "  (auto)")
             send(writer, f"VOTE {opts['act'] or 1}", "  (auto)")
             send(writer, "READY 0", "  (auto)")
+            continue
+
+        # The host's house rules. A joining client just plays by them; there is nothing
+        # to answer, and answering would let us overwrite what the host set.
+        if line.startswith("RULES "):
+            print(f"*** RULES FROM HOST: {line[6:]} ***", flush=True)
             continue
 
         if line.startswith("START "):
@@ -77,14 +85,14 @@ def reader(sock, writer, auto, opts):
             ready = False
             continue
 
-        if line.startswith("VOTE ") and not opts["legacy"]:
+        if line.startswith("VOTE ") and opts["proto"] >= 4:
             # Agree by default, so a match can be brought up from one machine. --act
             # pins us to one instead, which is how you see a 1/2 disagreement.
             want = opts["act"] or line.split(" ", 1)[1].strip()
             send(writer, f"VOTE {want}", "  (auto)")
             continue
 
-        if line.startswith("READY ") and not opts["legacy"]:
+        if line.startswith("READY ") and opts["proto"] >= 4:
             theirs = line.split(" ", 1)[1].strip() == "1"
             if opts["wait"]:
                 continue
@@ -125,11 +133,18 @@ def main():
     open(INBOX, "w").close()
 
     auto = "--manual" not in sys.argv
+    proto = PROTOCOL
+    if "--legacy" in sys.argv:
+        proto = 3
+    if "--proto" in sys.argv:
+        proto = int(sys.argv[sys.argv.index("--proto") + 1])
+
     opts = {
-        "legacy": "--legacy" in sys.argv,
+        "proto": proto,
         "wait": "--wait" in sys.argv,
         "act": sys.argv[sys.argv.index("--act") + 1] if "--act" in sys.argv else None,
     }
+    print(f"greeting as protocol {proto}", flush=True)
 
     # Wait for the game rather than requiring it to be hosting first, and go back to
     # waiting when it goes away. Testing means restarting the game over and over, and a

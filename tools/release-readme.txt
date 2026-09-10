@@ -15,22 +15,42 @@ INSTALL
      the slot - or press F7 at any time.
 
 VERSIONS
-  1.3.x plays against 1.1.x and 1.2.x, dropping back to what the older
-  client understands: no stat corrections, no synced sigils, no Sniper
-  aiming. 1.0.x is refused outright, and says so at the handshake rather
-  than failing halfway into a match.
+  Both players should be on the same version. 1.5.x still plays against
+  1.1.x-1.4.x, dropping back to what the older client understands: no match
+  rules against anything before 1.5, no lobby vote before 1.4, and no stat
+  corrections, synced sigils or Sniper aiming before 1.3. 1.0.x is refused
+  outright, and says so at the handshake rather than failing halfway into a
+  match.
 
 PLAYING
   One player clicks Host Lobby, the other clicks Find Games and picks it.
-  Pick an act - the host's choice decides the table, and the other client
-  follows it. Either player then clicks START MATCH.
+  Both players pick an act - the tally under the buttons shows who wants
+  what, and the match can only be the one you both chose. Both players then
+  click START MATCH; the first press holds at 1/2 until the second lands.
 
-  F7  menu        F8  start match        F12  abort out of anything
+  F7  menu        F8  ready up        F12  abort out of anything
+
+MATCH RULES
+  Under the act buttons, the host sets how cards are dealt:
+
+    Random    the way the game normally deals - a card at random.
+    In order  off the top of your deck, in the order you built it.
+
+  Both players play under the same rule, and the one who did not choose it
+  can see which it is before pressing start.
 
 DECK
   F7 -> EDIT DECK opens the game's own card table. Click a card to add it.
   In View My Deck, clicking a card selects it, and the bar then offers
-  Add Sigils or Delete Card. 6-20 cards, each player brings their own.
+  Add Sigils or Delete Card. A strip along the bottom shows where that card
+  sits in the deck, with Move Earlier and Move Later - which is the order it
+  is dealt in under the In order rule. 6-20 cards, each player brings their
+  own.
+
+  Act 1 also keeps ten squirrels in a second pile beside your deck, and
+  Act 3 ten empty vessels; you can draw from either one on any turn, the
+  same as the campaign. Both players get the same pile whatever their own
+  single-player progress says.
 
 SIGILS
   Put extra sigils on any card in your deck, chosen from what the game

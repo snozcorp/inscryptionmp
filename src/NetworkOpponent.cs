@@ -83,7 +83,7 @@ namespace InscryptionMP
 
         private IEnumerator PlacePeerCard(string cardName, int slotIndex)
         {
-            CardInfo info = CardLoader.GetCardByName(cardName);
+            CardInfo info = Cards.ByName(cardName);
             if (info == null)
             {
                 Trace.Error($"[opp] unknown card '{cardName}' - skipping");
@@ -141,7 +141,7 @@ namespace InscryptionMP
 
                     if (!wanted.IsEmpty)
                     {
-                        CardInfo info = CardLoader.GetCardByName(wanted.Name);
+                        CardInfo info = Cards.ByName(wanted.Name);
                         if (info == null)
                         {
                             Trace.Error($"[opp] reconcile: unknown card '{wanted.Name}'");
@@ -255,5 +255,12 @@ namespace InscryptionMP
 
         // No AI, no scripted blueprint: nothing to queue ahead of the player.
         public override bool QueueFirstCardBeforePlayer => false;
+
+        /// <summary>
+        /// A person on the other end does not offer to let you walk away. The base sequence
+        /// would set the flag from our board state alone, with nothing on either screen
+        /// saying so and nothing on their side that agrees.
+        /// </summary>
+        protected override bool CanOfferSurrender() => false;
     }
 }

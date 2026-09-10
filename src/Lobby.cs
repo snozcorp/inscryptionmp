@@ -141,6 +141,22 @@ namespace InscryptionMP
             Trace.Info("[lobby] opponent is " + (ready ? "ready" : "no longer ready"));
         }
 
+        /// <summary>
+        /// The rules moved, so neither commitment stands: the match both players pressed
+        /// start on is not the one that would begin. Called on both sides - the host when
+        /// they change something, the other player when they hear about it - so the two
+        /// step out together instead of one of them holding a stale yes.
+        /// </summary>
+        public static void NoteRulesChanged()
+        {
+            _announcePending = true;
+            if (!MyReady && !_peerReady) return;
+
+            SetReady(false);
+            _peerReady = false;
+            Trace.Info("[lobby] match rules changed - both players are no longer ready");
+        }
+
         // ----------------------------------------------------------------- lifecycle
 
         /// <summary>A fresh peer: nothing the last one said still counts.</summary>
@@ -150,6 +166,7 @@ namespace InscryptionMP
             _peerReady = false;
             _myReady = false;
             _announcePending = true;
+            MatchRules.ForgetPeer();
 
             // A result belongs to the opponent it was won against. Carrying "You won" into
             // a lobby with somebody else is just untrue.
@@ -189,6 +206,15 @@ namespace InscryptionMP
                 _announcedAt = Environment.TickCount;
                 Net.Send(Protocol.Vote(MyAct));
                 Net.Send(Protocol.Ready(MyReady));
+
+                // Only the host has rules to announce, and only a peer that speaks 5 can
+                // read them. Sent before START ever is, so the other client applies them
+                // to the match it is about to load.
+                if (Net.IsHost)
+                {
+                    string rules = MatchRules.Announcement;
+                    if (rules != null) Net.Send(rules);
+                }
             }
 
             // One side decides. If both fired, two START messages would cross and each

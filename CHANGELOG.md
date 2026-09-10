@@ -2,6 +2,71 @@
 
 Versions that were actually published. Dates are release dates.
 
+## 1.5.0 — 2026-09-10
+
+The update that let you decide what order your deck comes out in.
+
+**Card draw is a match rule now: Random, or In order.** In order deals off the top of your
+deck, in the order you built it, so the deck is a plan rather than a bag — the sequence is
+yours to set and the same every match. Random is the game's own deal and stays the default.
+The host picks; the other player sees which it is before they press start, and changing it
+takes both players out of ready so nobody is committed to a match they last looked at under
+different rules. Suggested by Zucker_Schock.
+
+**Your deck has an order, and you can set it.** In **View My Deck**, a selected card shows
+its draw position along the bottom with **Move Earlier** and **Move Later**. It matters under
+the In order rule and is harmless under Random, where it is just the order you browse in.
+
+**Squirrels are in the card list.** They always belonged in a deck — the starter deck the mod
+hands out is three of them — but nothing in the game marks a squirrel as a card it would ever
+*offer* you, so the browser had been filtering them out since the first release. Act 3's
+empty vessels were missing for the same reason. Also spotted by Zucker_Schock.
+
+For anyone wondering what the three squirrels in the starter deck were for: they aren't the
+squirrel supply. Act 1 has a second pile beside your deck holding ten of them and you can
+draw from it any turn, exactly as in the campaign. The three in the deck are simply what the
+campaign's own starting deck has.
+
+**Both players get the same second pile.** Act 1's squirrel pile becomes ten *bees* once
+you've found the bee figurine in single player, and Act 3's vessels come with gems in them
+once you've fetched the gems module. A bee is 1/1 and airborne where a squirrel is 0/1, so
+two players in the same match were playing with materially different piles, decided by how
+far each of them had got in their own campaign and mentioned nowhere. A versus deck already
+ignores campaign progression; now so does the pile next to it.
+
+**Alt-tabbing no longer stops your side of the match.** Unity does not update a window that
+isn't in front unless it is asked to, so clicking away froze your client where it stood:
+nothing read off the socket, no card your opponent played arrived, and the turn never came
+back. From their side you had simply stopped playing without disconnecting.
+
+**Leaving a match told the wrong person they had lost.** Every part of the mod that reports a
+result means "here is your result" — conceding by walking out sends *you won* — but the
+receiving end read the same message as the sender's own result and printed its opposite. Quit
+mid-match and your opponent was told they had lost the match they had just been handed. The
+wire format is unchanged, so a 1.4 opponent's report is still understood correctly; it is
+only their own screen that keeps their build's answer.
+
+**A deck naming a card that doesn't exist no longer takes the deck with it.** The game's
+`CardLoader.GetCardByName` throws on an unknown name rather than returning nothing, and the
+mod asked it about names from hand-edited deck files and straight off the wire. A typo in
+`inscryptionmp-deck-act1.txt` broke loading; an unrecognised card name from a peer broke their
+whole turn instead of skipping one card.
+
+**The panel fits smaller windows.** It is drawn at its designed size wherever there is room
+and comes down until it fits where there isn't — below about 800 pixels of height it used to
+run off both ends, losing the title and the hotkey line. The version in the corner also stopped
+cutting its last character off, having called itself "v1.4." for several releases.
+
+**Smaller things.** A twenty-first card now says the deck is full instead of doing nothing.
+The GBC board took its colour from your deck's temple and got Nature every time once any card
+in that deck carried a sigil. Hosting, cancelling and hosting again in quick succession could
+leave the transport reading the peer happily while every send was dropped as "not connected".
+A network opponent no longer offers you a surrender it has no way to honour.
+
+**Under the hood.** The mod can now play itself: two real game clients drive a whole match
+from `tools/test-all.sh` with nobody at either keyboard, which is how everything above was
+checked on all three acts.
+
 ## 1.4.0 — 2026-09-08
 
 The update that made starting a match something both players do.

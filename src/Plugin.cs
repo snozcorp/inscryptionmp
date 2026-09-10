@@ -11,7 +11,7 @@ namespace InscryptionMP
     {
         public const string Guid = "dev.snoz.inscryptionmp";
         public const string Name = "InscryptionMP";
-        public const string Version = "1.4.0";
+        public const string Version = "1.5.0";
 
         internal static ManualLogSource Log;
 
@@ -44,6 +44,14 @@ namespace InscryptionMP
             gameObject.AddComponent<MpMenu>();
             Log.LogInfo("Press F7 for the multiplayer menu.  F8 = start match, F12 = abort.");
 
+            MatchRules.Bind(Config.Bind("Match", "Rules", Rules.Default.Encode(),
+                "House rules for matches you host, as a key=value list. Set from the menu; "
+                + "kept here so the next session starts where you left off. draw=random "
+                + "deals the way the game normally does, draw=order deals off the top of "
+                + "your deck."));
+
+            Autopilot.Boot(this);
+
             var autoHost = Config.Bind("Dev", "AutoHost", false,
                 "Open a direct-connect listener as soon as the game starts. Off by default: "
                 + "hosting should be a deliberate act from the menu, not something every "
@@ -58,6 +66,17 @@ namespace InscryptionMP
         private void OnDestroy()
         {
             _harmony?.UnpatchSelf();
+        }
+
+        /// <summary>
+        /// Close the socket on the way out. Left open, the listener thread throws into the
+        /// log as the process tears down around it, and a peer sees the connection die with
+        /// no word rather than being told we left.
+        /// </summary>
+        private void OnApplicationQuit()
+        {
+            if (VersusMode.InMatch) Net.Send(Protocol.YouWon);   // walking out is conceding
+            Net.Shutdown();
         }
     }
 }

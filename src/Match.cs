@@ -23,7 +23,7 @@ namespace InscryptionMP
                 foreach (string entry in DeckStore.Deck)
                 {
                     string name = DeckStore.BaseName(entry);
-                    CardInfo info = CardLoader.GetCardByName(name);
+                    CardInfo info = Cards.ByName(name);
                     if (info == null)
                     {
                         Trace.Warn($"[match] card '{name}' did not resolve - skipping");
@@ -36,7 +36,7 @@ namespace InscryptionMP
                     deck.Add(info);
                 }
 
-                Trace.Info($"[match] built versus deck with {deck.Count} cards from the player's list");
+                Trace.Info($"[match] built versus deck with {deck.Count} cards, in order: " + DrawOrder.Describe(deck));
                 _cache = deck;
                 return new List<CardInfo>(_cache);
             }

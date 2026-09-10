@@ -33,7 +33,8 @@ either local hotseat, Tabletop Simulator, or a browser/Godot reimplementation.
 - `BoardManager` (Singleton) — `PlayerSlotsCopy` / `OpponentSlotsCopy`,
   `CreateCardInSlot(CardInfo, CardSlot)`, `ResolveCardOnBoard(PlayableCard, CardSlot)`.
 - `CardSlot.Index` and `CardSlot.IsPlayerSlot` give us stable slot addressing.
-- `CardLoader.GetCardByName(string)` — card name is a sufficient wire identifier.
+- `CardLoader.GetCardByName(string)` — card name is a sufficient wire identifier. It
+  throws rather than returning null on a name it doesn't know; see the correction below.
 
 ## Key engine findings, part two (acts 2 and 3, UI)
 Learned bringing up the other acts. All verified against Assembly-CSharp, not guessed.
@@ -87,6 +88,27 @@ Learned bringing up the other acts. All verified against Assembly-CSharp, not gu
   ascension card when Kaycee's Mod is locked, so a prefix that lays out the row sees a
   card that is about to disappear.
 
+### Three more, found bringing up match rules and the self-test
+- **`CardLoader.GetCardByName` throws on a name that isn't a card.** It is
+  `Clone(AllData.Find(x => x.name == name))` with nothing in between, and `Clone` dereferences
+  what `Find` returned - so an unknown name is a `NullReferenceException`, not a null. Every
+  caller in this mod had been written to check for the null that never comes. It matters
+  because two of the places a card name arrives from are outside the mod's control: a
+  hand-edited deck file, and the peer's own `PLAY` line. `Cards.ByName` is the guarded lookup
+  everything goes through now.
+- **`Application.runInBackground` is false.** Inscryption is single-player, so Unity's
+  default stands and the player stops updating when its window isn't in front. For a
+  networked match that is a freeze: the reader thread keeps filling the inbox, because
+  background threads are unaffected, but nothing on the main thread ever drains it. The
+  symptom is confusing precisely because half the client stays alive - the log keeps
+  printing `<- VOTE`, and nothing is ever sent back.
+- **The side pile is campaign progression in disguise.** `Part1CardDrawPiles.SideDeckData`
+  reads `StoryEventsData.EventCompleted(StoryEvent.BeeFigurineFound)` and hands out ten
+  Bees instead of ten Squirrels; `Part3CardDrawPiles` does the same with
+  `GemsModuleFetched` and `Part3SaveData.deckGemsDistribution`. In single player that is a
+  reward. In a versus match it is two people playing with different piles for reasons
+  neither of them can see.
+
 ### Two that cost real time
 - **Patching an overloaded method by name throws `AmbiguousMatchException` — during
   `PatchAll`.** That aborts the entire pass, so *every* patch in the mod silently fails to
@@ -113,20 +135,35 @@ Transport is plain TCP, newline-delimited text. It's turn-based: ordering matter
 latency does not. The protocol is human-readable so the log is the debugger.
 
 ## Wire protocol
-Protocol 4. Newline-delimited text, human-readable so the log is the debugger.
+Protocol 5. Newline-delimited text, human-readable so the log is the debugger.
 
 ```
 HELLO <proto> <modVersion>    greeting; both sides send it on connect
 VOTE <act>                    which act the sender wants to play
 READY 0 | READY 1             whether the sender has committed to starting it
+RULES <k=v;k=v>               the host's house rules for the match
 START <act>                   begin a match on act 1, 2 or 3
 PLAY <cardName> <slotIndex>   peer played a card into their player slot N
 SAC <slotIndex>               peer sacrificed the card in that slot
 BOARD <slot>|<slot>|...       authoritative snapshot of the sender's player slots
 AIM <slot> <t1,t2,...>        where the sender aimed a Sniper card
+LATCH P|O <slotIndex>         which card a latcher latched onto
 END                           peer ended their turn
-OVER WON | OVER LOST          the sender is reporting their own result
+OVER WON | OVER LOST          how the match ended, FOR THE RECEIVER
 ```
+
+`OVER` states the *receiver's* result, not the sender's: the side that knows the match is
+over is reporting it to the side that doesn't. Every sender in the mod always meant that -
+conceding by walking out sends `OVER WON` - but until 1.5 the reading end took it as the
+sender's own result and printed the opposite, so quitting told your opponent they had lost.
+The strings are unchanged, which is why a 1.4 peer's report is still read correctly.
+
+`RULES` is a key=value list rather than a fixed set of fields, so the next rule is a key an
+older build skips instead of protocol 6. Only the host sends it, because both clients run
+their own battle against their own deck and a rule that changes how a deck behaves is only
+fair if one side decides it for both. A peer that speaks 4 or less cannot be told, so the
+match falls back to the defaults on both sides rather than one of them quietly playing a
+different game.
 
 A `BOARD` slot is `-` for empty, otherwise `Name:attack/health` with `:sigil,sigil`
 appended when the card has gained any. Names alone were not enough: both clients simulate
@@ -166,6 +203,9 @@ would load Act 1's cabin while the other loaded Act 3's board.
 - [x] Player-chosen sigils on deck cards
 - [x] A multiplayer card on the title screen
 - [x] Both players vote on the act and both commit before a match loads
+- [x] Match rules on the wire; card draw random or in deck order
+- [x] Deck order the player sets, and the deck dealt in it
+- [x] Two real clients playing a whole match with nobody at either keyboard
 
 ## Known gaps / next
 - Acts 2 and 3 have now been played between two real clients, but with far fewer hours on
@@ -177,16 +217,42 @@ would load Act 1's cabin while the other loaded Act 3's board.
 - No spectating, no reconnect beyond the two-minute window, no matchmaking beyond Steam's
   public lobby list.
 
+## Testing with two clients and nobody watching
+`src/Autopilot.cs` is a second driver for the mod: it hosts or joins, votes, presses start,
+takes its turns and quits, and writes what it did to the trace. It is inert unless
+`INSCRYPTIONMP_AUTOPILOT` is set in the environment, so it ships in the release and does
+nothing there.
+
+```bash
+tools/test-all.sh          # wire-format tests, then a match on each act
+tools/test-all.sh --quick  # just the build and the wire-format tests
+tools/match-test.sh --act 2 --draw order
+```
+
+`match-test.sh` launches both installs listed at the top of it, waits for both trace logs to
+say `[auto] ==== RUN`, and fails on any `[auto] FAIL`. Two things it taught, both of which
+are now fixed rather than worked around:
+
+- Only the focused window runs, so the first attempt looked like a transport bug: the host
+  was reading the joiner's messages and answering none of them. `Application.runInBackground`.
+- Both game windows open at the same position, so screenshotting one by its window rectangle
+  photographs whichever is in front. Foreground it first.
+
+`INSCRYPTIONMP_AUTOPILOT_HOLD` stops before the match and parks the client on the lobby
+panel or the deck table instead, which is how the interface gets looked at rather than
+described - there is no reading a layout out of a log.
+
 ## Testing without a second copy of the game
 Steam won't happily run two instances, so `tools/peer.py` speaks our protocol directly:
 
 1. Launch the game (BepInEx is installed; it loads automatically).
 2. **F7 → Direct connect → Host**, before anything else. `OpponentInjector` only swaps in
    `NetworkOpponent` if `Net.Connected` is true at `SpawnOpponent` time.
-3. `python tools/peer.py` — it greets as a protocol 4 client, mirrors whichever act you
+3. `python tools/peer.py` — it greets as a protocol 5 client, mirrors whichever act you
    vote for, and presses start once you have, so the whole negotiation runs from one
    machine. `--act 2` pins it to Act 2 to see a 1/2 disagreement, `--wait` makes it never
-   press start, and `--legacy` makes it greet as protocol 3 to exercise the fallback. It
+   press start, `--proto 4` makes it a build that cannot be told the match rules, and
+   `--legacy` makes it greet as protocol 3 to exercise the older fallback. It
    can be started before the game and left running across restarts; it waits for the
    listener and goes back to waiting when the game closes.
 4. Press START MATCH. The panel should hold at 1/2 for half a second, then load.

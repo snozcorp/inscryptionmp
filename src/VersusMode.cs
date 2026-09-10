@@ -296,6 +296,10 @@ namespace InscryptionMP
             LoadedTableForDeck = false;
             Suspended = false;
             Net.Reconnecting = true;
+
+            // Fix the rules now. Both clients read them from here for the rest of the
+            // match, so a late RULES message can't change how one of them is dealing.
+            MatchRules.Lock();
             SaveManager.savingDisabled = true;   // belt and braces: no save writes during a match
 
             // Start from an empty queue. Anything still buffered belongs to the match that
@@ -415,9 +419,12 @@ namespace InscryptionMP
         private static PixelBoardSpriteSetter.BoardTheme ThemeForDeck()
         {
             var counts = new Dictionary<CardTemple, int>();
-            foreach (string name in DeckStore.Deck)
+            foreach (string entry in DeckStore.Deck)
             {
-                CardInfo info = CardLoader.GetCardByName(name);
+                // The entry, not the card: one carrying sigils reads "Wolf:Airborne", which
+                // resolves to nothing, so a deck with sigils on it counted as no cards at
+                // all and the GBC table always came up dressed as Nature.
+                CardInfo info = Cards.ByName(DeckStore.BaseName(entry));
                 if (info == null) continue;
                 counts.TryGetValue(info.temple, out int n);
                 counts[info.temple] = n + 1;
@@ -493,7 +500,7 @@ namespace InscryptionMP
             else Notice.Say(LastResult);
             Trace.Info($"[versus] match over - {LastResult} ({reason})");
 
-            Net.Send(playerWon ? Protocol.Lost : Protocol.Won);   // their result is our inverse
+            Net.Send(playerWon ? Protocol.YouLost : Protocol.YouWon);   // their result is our inverse
 
             InMatch = false;
             Suspended = false;
@@ -544,7 +551,7 @@ namespace InscryptionMP
             // reports us as disconnected - without this the peer waits for a turn that is
             // never coming, and not even the reconnect window rescues them because nothing
             // dropped. Walking out is conceding.
-            if (InMatch) Net.Send(Protocol.Won);   // they won; we left
+            if (InMatch) Net.Send(Protocol.YouWon);   // they won; we left
 
             InMatch = false;
             Suspended = false;

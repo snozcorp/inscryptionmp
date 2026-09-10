@@ -27,6 +27,15 @@ namespace InscryptionMP
         public static string SelectedCardName =>
             HasSelection ? DeckStore.BaseName(DeckStore.Deck[SelectedEntry]) : "";
 
+        /// <summary>Selects a deck entry outright. Used by the autopilot.</summary>
+        internal static void SelectAt(int index)
+        {
+            if (index < 0 || index >= DeckStore.Deck.Count) return;
+            SelectedEntry = index;
+            Page = index / PageSize;
+            _refresh = true;
+        }
+
         public static void ClearSelection()
         {
             SelectedEntry = -1;
@@ -38,6 +47,30 @@ namespace InscryptionMP
         {
             if (!HasSelection) return;
             EnterSigilMode(SelectedEntry);
+        }
+
+        /// <summary>
+        /// Where the selected card sits in the deck, which is the order it is dealt in when
+        /// the match is played that way. One-based, because it is read by a person.
+        /// </summary>
+        public static string SelectedPosition =>
+            HasSelection ? (SelectedEntry + 1) + " of " + DeckStore.Deck.Count : "";
+
+        public static bool CanMoveSelected(int delta) =>
+            HasSelection && SelectedEntry + delta >= 0 && SelectedEntry + delta < DeckStore.Deck.Count;
+
+        /// <summary>Moves the selected card a place earlier or later in the deck.</summary>
+        public static void MoveSelected(int delta)
+        {
+            if (!HasSelection) return;
+            if (!DeckStore.Move(SelectedEntry, delta)) return;
+
+            // Follow the card rather than the slot, and turn to the page it landed on -
+            // otherwise moving off the end of a page looks like the card vanishing.
+            SelectedEntry += delta;
+            Page = SelectedEntry / PageSize;
+            _refresh = true;
+            Trace.Info($"[deckui] moved {SelectedCardName} to position {SelectedEntry + 1}");
         }
 
         /// <summary>Takes the selected card out of the deck.</summary>
@@ -256,8 +289,17 @@ namespace InscryptionMP
 
                 if (PoolMode)
                 {
-                    DeckStore.Add(id);
-                    Trace.Info($"[deckui] added {id} ({DeckStore.Deck.Count} cards)");
+                    if (DeckStore.Add(id))
+                    {
+                        Trace.Info($"[deckui] added {id} ({DeckStore.Deck.Count} cards)");
+                    }
+                    else
+                    {
+                        // Silently doing nothing on the twenty-first click reads as the
+                        // card table having stopped working.
+                        Notice.Bad($"Your deck is full at {DeckStore.MaxCards} cards.");
+                        Trace.Info($"[deckui] deck full - {id} not added");
+                    }
                 }
                 else
                 {
@@ -351,7 +393,7 @@ namespace InscryptionMP
         /// <summary>Sigils the card is printed with, which count against the limit.</summary>
         public static int PrintedSigils(string cardName)
         {
-            CardInfo info = CardLoader.GetCardByName(cardName);
+            CardInfo info = Cards.ByName(cardName);
             return info?.Abilities == null ? 0 : info.Abilities.Count;
         }
 
@@ -422,7 +464,7 @@ namespace InscryptionMP
                     // Entries can carry sigils now, so the card is the part before the
                     // colon - resolving the whole entry finds nothing and the card would
                     // quietly disappear from your own deck view.
-                    CardInfo info = CardLoader.GetCardByName(DeckStore.BaseName(entry));
+                    CardInfo info = Cards.ByName(DeckStore.BaseName(entry));
                     if (info == null) continue;
 
                     // Always a copy, even with no sigils on it. CardLoader hands out one
@@ -445,7 +487,7 @@ namespace InscryptionMP
             if (SigilTarget < 0 || SigilTarget >= DeckStore.Deck.Count) return cards;
 
             string entry = DeckStore.Deck[SigilTarget];
-            CardInfo baseInfo = CardLoader.GetCardByName(DeckStore.BaseName(entry));
+            CardInfo baseInfo = Cards.ByName(DeckStore.BaseName(entry));
             if (baseInfo == null) return cards;
 
             var chosen = new List<string>(DeckStore.SigilsOf(entry));

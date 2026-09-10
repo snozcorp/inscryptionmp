@@ -70,7 +70,7 @@ namespace InscryptionMP
         {
             foreach (string name in new[] { "Squirrel", "Stoat", "Wolf", "Bullfrog" })
             {
-                CardInfo probe = CardLoader.GetCardByName(name);
+                CardInfo probe = Cards.ByName(name);
                 if (probe?.portraitTex == null) continue;
                 _referenceSize = probe.portraitTex.bounds.size;
                 Trace.Info($"[art] portrait slot measured from {name}: {_referenceSize.x:0.00}x{_referenceSize.y:0.00}");

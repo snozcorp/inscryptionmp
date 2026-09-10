@@ -11,8 +11,11 @@ namespace InscryptionMP
         ///
         /// 4 added the lobby negotiation - VOTE and READY - so both players agree on an act
         /// and both commit before anything loads.
+        ///
+        /// 5 added RULES, the host's house rules for the match. Its payload is a key=value
+        /// list, so a later rule is a key an older build skips rather than another version.
         /// </summary>
-        public const int Version = 4;
+        public const int Version = 5;
 
         /// <summary>The oldest protocol we can still play against.</summary>
         public const int MinCompatible = 2;
@@ -78,6 +81,22 @@ namespace InscryptionMP
             string value = msg.Substring(ReadyPrefix.Length).Trim();
             if (value != "0" && value != "1") return false;
             ready = value == "1";
+            return true;
+        }
+
+        public const string RulesPrefix = "RULES ";
+
+        /// <summary>
+        /// The house rules the host is running. A key=value list rather than fixed fields,
+        /// so a rule the receiver has never heard of is one it skips.
+        /// </summary>
+        public static string RulesLine(string payload) => RulesPrefix + payload;
+
+        public static bool TryParseRules(string msg, out string payload)
+        {
+            payload = null;
+            if (msg == null || !msg.StartsWith(RulesPrefix)) return false;
+            payload = msg.Substring(RulesPrefix.Length).Trim();
             return true;
         }
 
@@ -230,8 +249,18 @@ namespace InscryptionMP
             return true;
         }
 
-        public const string Won  = "OVER WON";    // sender is telling us THEY won
-        public const string Lost = "OVER LOST";
+        /// <summary>
+        /// How a match ended, stated from the *receiver's* side: "OVER WON" means the
+        /// sender is telling you that you won, because they lost or walked out.
+        ///
+        /// Which way round these read has always been what every sender meant - conceding
+        /// sends YouWon, and the comment at that call site says "they won; we left" - but
+        /// the receiver read them the other way and turned each one into its opposite. The
+        /// wire strings are unchanged, so a 1.4 peer's report is still understood; it is
+        /// only their own screen that keeps the old build's inverted answer.
+        /// </summary>
+        public const string YouWon  = "OVER WON";
+        public const string YouLost = "OVER LOST";
 
         public static string Play(string cardName, int slotIndex) => $"PLAY {cardName} {slotIndex}";
 

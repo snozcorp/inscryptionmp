@@ -34,13 +34,14 @@ namespace InscryptionMP
 
         private GUIStyle _chip, _label, _dim, _header, _section, _field, _button, _small;
         private GUIStyle _primary, _quiet, _warn, _resultText, _good, _busy, _close, _pageLabel;
-        private GUIStyle _countLabel;
+        private GUIStyle _countLabel, _version;
         private GUIStyle _vote, _voteBoth;
         private GUIStyle _chipState, _chipInfo;
         private Texture2D _panelBg, _chipBg, _accent;
 
         private void Update()
         {
+            Background.Tick();
             SteamTransport.Poll();
 
             if (Input.GetKeyDown(KeyCode.F7))
@@ -202,7 +203,7 @@ namespace InscryptionMP
             foreach (GUIStyle st in new[] { _chip, _label, _dim, _small, _header, _section,
                                             _field, _button, _primary, _quiet, _warn, _good,
                                             _busy, _close, _resultText, _chipState, _chipInfo,
-                                            _pageLabel, _countLabel, _vote, _voteBoth })
+                                            _pageLabel, _countLabel, _vote, _voteBoth, _version })
             {
                 if (st == null) continue;
                 st.font = f;
@@ -296,6 +297,11 @@ namespace InscryptionMP
 
             _countLabel = new GUIStyle(_pageLabel) { alignment = TextAnchor.MiddleRight };
 
+            // A width of its own and no wrapping. Sharing the title row with a flexible
+            // space, the version was laid out one glyph narrower than it draws - every
+            // release since 1.1 has quietly called itself "v1.4." on its own panel.
+            _version = new GUIStyle(_small) { alignment = TextAnchor.MiddleRight, wordWrap = false };
+
             // The tally under each act button. Small enough to read as an annotation on the
             // button rather than as another row of controls.
             _vote = new GUIStyle(GUI.skin.label)
@@ -352,8 +358,10 @@ namespace InscryptionMP
                 // Scaled like the rest of the UI. Returning early skipped the matrix, so
                 // this bar stayed at 1x - and it's the one being read continuously while
                 // browsing cards.
+                _viewScale = FitWidth(CardBarW + 48f);
+
                 Matrix4x4 barRestore = GUI.matrix;
-                GUI.matrix = Matrix4x4.Scale(new Vector3(UiScale, UiScale, 1f));
+                GUI.matrix = Matrix4x4.Scale(new Vector3(_viewScale, _viewScale, 1f));
                 DrawCardViewHint();
                 GUI.matrix = barRestore;
 
@@ -363,16 +371,18 @@ namespace InscryptionMP
 
             if (!_open)
             {
+                float chipScale = FitWidth(460f);
                 Matrix4x4 chipRestore = GUI.matrix;
-                GUI.matrix = Matrix4x4.Scale(new Vector3(UiScale, UiScale, 1f));
+                GUI.matrix = Matrix4x4.Scale(new Vector3(chipScale, chipScale, 1f));
                 DrawChip();
                 GUI.matrix = chipRestore;
                 return;
             }
 
             // Positions are worked out in unscaled space, then the matrix magnifies it.
-            float vw = Screen.width / UiScale;
-            float vh = Screen.height / UiScale;
+            _panelScale = FitScale(PanelW + Pad * 2f, _measuredH + 28f);
+            float vw = Screen.width / _panelScale;
+            float vh = Screen.height / _panelScale;
             _rect = new Rect((vw - PanelW) * 0.5f,
                              (vh - _measuredH) * 0.5f,
                              PanelW, _measuredH);
@@ -380,7 +390,7 @@ namespace InscryptionMP
             // else drawn in OnGUI regardless of call order, which painted over the cursor
             // every frame. We draw our own background anyway, so the window bought nothing.
             Matrix4x4 restore = GUI.matrix;
-            GUI.matrix = Matrix4x4.Scale(new Vector3(UiScale, UiScale, 1f));
+            GUI.matrix = Matrix4x4.Scale(new Vector3(_panelScale, _panelScale, 1f));
 
             GUI.BeginGroup(_rect);
             DrawWindow(0);
@@ -634,10 +644,10 @@ namespace InscryptionMP
                 ? NativeDeckBuilder.SigilBudget
                 : $"deck {DeckStore.Deck.Count}/{DeckStore.MaxCards}";
 
-            const float w = 860f;
+            const float w = CardBarW;
             const float barPad = 14f;
 
-            var bar = new Rect((Screen.width / UiScale - w) * 0.5f, 12f, w, _barH);
+            var bar = new Rect((Screen.width / _viewScale - w) * 0.5f, 12f, w, _barH);
 
             GUI.DrawTexture(bar, _panelBg);
             Frame(bar, GoldSoft);
@@ -726,6 +736,59 @@ namespace InscryptionMP
                           "Your deck is empty - browse all cards to add some.", _chip);
             }
 
+            if (!pool && !sigils && selected) DrawOrderBar();
+        }
+
+        /// <summary>Height of the ordering strip, measured the way the bar above it is.</summary>
+        private float _orderH = 60f;
+
+        /// <summary>
+        /// Where the chosen card sits in the deck, and the two buttons that move it. Along
+        /// the bottom rather than in the bar at the top: the bar already covers the back row
+        /// of cards, and the whole point of this is to look at them while reordering.
+        /// </summary>
+        private void DrawOrderBar()
+        {
+            const float w = 780f;
+            const float pad = 12f;
+
+            float vw = Screen.width / _viewScale;
+            float vh = Screen.height / _viewScale;
+            var bar = new Rect((vw - w) * 0.5f, vh - _orderH - 18f, w, _orderH);
+
+            GUI.DrawTexture(bar, _panelBg);
+            Frame(bar, GoldSoft);
+
+            GUILayout.BeginArea(new Rect(bar.x + pad, bar.y + pad, bar.width - pad * 2f, 300f));
+            GUILayout.BeginVertical();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("DRAW POSITION   " + NativeDeckBuilder.SelectedPosition,
+                            _section, GUILayout.Width(210f));
+
+            GUI.enabled = NativeDeckBuilder.CanMoveSelected(-1);
+            if (GUILayout.Button("Move Earlier", _quiet, GUILayout.Width(150f)))
+                NativeDeckBuilder.MoveSelected(-1);
+
+            GUILayout.Space(8f);
+            GUI.enabled = NativeDeckBuilder.CanMoveSelected(1);
+            if (GUILayout.Button("Move Later", _quiet, GUILayout.Width(150f)))
+                NativeDeckBuilder.MoveSelected(1);
+            GUI.enabled = true;
+
+            GUILayout.Space(14f);
+            GUILayout.Label(MatchRules.Effective.Draw == CardDraw.InOrder
+                            ? "Dealt in this order"
+                            : "Matters under In order",
+                            _small, GUILayout.Width(200f));
+            GUILayout.EndHorizontal();
+
+            GUILayout.EndVertical();
+
+            if (Event.current.type == EventType.Repaint)
+                _orderH = GUILayoutUtility.GetLastRect().yMax + pad * 2f;
+
+            GUILayout.EndArea();
         }
 
         /// <summary>
@@ -773,8 +836,36 @@ namespace InscryptionMP
             GUILayout.EndArea();
         }
 
-        /// <summary>How much larger to draw the whole interface.</summary>
-        private const float UiScale = 1.6f;
+        /// <summary>
+        /// How much larger to draw the interface. 1.6 is the size it is designed at; on a
+        /// window too short or too narrow for that it comes down until it fits, because a
+        /// panel drawn past the edge of the screen loses whichever rows fall off it - the
+        /// title at the top and the hotkey line at the bottom, which is where someone
+        /// stuck would look first.
+        /// </summary>
+        private const float MaxScale = 1.6f;
+
+        /// <summary>Past this it stops being readable, so it stops shrinking instead.</summary>
+        private const float MinScale = 0.8f;
+
+        /// <summary>What the panel and the card view were drawn at last pass.</summary>
+        private float _panelScale = MaxScale;
+        private float _viewScale = MaxScale;
+
+        private static float FitWidth(float w)
+        {
+            return Mathf.Clamp(Mathf.Min(MaxScale, Screen.width / Mathf.Max(1f, w)),
+                               MinScale, MaxScale);
+        }
+
+        private static float FitScale(float w, float h)
+        {
+            float fit = Mathf.Min(Screen.width / Mathf.Max(1f, w), Screen.height / Mathf.Max(1f, h));
+            return Mathf.Clamp(Mathf.Min(MaxScale, fit), MinScale, MaxScale);
+        }
+
+        /// <summary>Width of the card view's control bar, and the thing that sizes it.</summary>
+        private const float CardBarW = 860f;
 
         private const float Pad = 24f;   // outer breathing room
         private const float Gap = 14f;   // between related rows
@@ -788,7 +879,7 @@ namespace InscryptionMP
             GUILayout.BeginHorizontal();
             GUILayout.Label("INSCRYPTION ONLINE", _header);
             GUILayout.FlexibleSpace();
-            GUILayout.Label("v" + Plugin.Version, _small);
+            GUILayout.Label("v" + Plugin.Version, _version, GUILayout.Width(70f));
 
             // Reachable with the mouse. F7 still works, but a panel you can only dismiss
             // with a key you have to already know about isn't much of a panel.
@@ -834,6 +925,9 @@ namespace InscryptionMP
 
             GUILayout.Space(Section);
             DrawDeckSection();
+
+            GUILayout.Space(Section);
+            DrawRulesSection();
 
             GUILayout.Space(Section);
             DrawDirectSection();
@@ -950,6 +1044,52 @@ namespace InscryptionMP
         }
 
         /// <summary>
+        /// The house rules for the next match. The host sets them; the other player reads
+        /// them before pressing start, which is what makes pressing start mean something.
+        /// </summary>
+        private void DrawRulesSection()
+        {
+            GUILayout.Label("MATCH RULES", _section);
+
+            bool ours = MatchRules.WeDecide;
+            CardDraw draw = MatchRules.Effective.Draw;
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Card draw", _dim, GUILayout.Width(110f));
+
+            if (ours)
+            {
+                const float ruleGap = 8f;
+                float ruleW = (PanelW - Pad * 2f - 110f - ruleGap) / 2f;
+
+                if (GUILayout.Button("Random", draw == CardDraw.Random ? _primary : _button,
+                                     GUILayout.Width(ruleW), GUILayout.Height(34f)))
+                    MatchRules.SetDraw(CardDraw.Random);
+
+                GUILayout.Space(ruleGap);
+                if (GUILayout.Button("In order", draw == CardDraw.InOrder ? _primary : _button,
+                                     GUILayout.Width(ruleW), GUILayout.Height(34f)))
+                    MatchRules.SetDraw(CardDraw.InOrder);
+            }
+            else
+            {
+                GUILayout.Label(MatchRules.Effective.DrawName + "   (set by the host)", _label);
+                GUILayout.FlexibleSpace();
+            }
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(4f);
+            Say(draw == CardDraw.InOrder
+                ? "Cards come off the top of your deck, in the order you built it."
+                : "Cards come out of your deck at random, the way the game normally deals.",
+                _small);
+
+            if (MatchRules.DowngradedForPeer)
+                Say("Their build is older and can't be told the rules - this match uses the defaults.",
+                    _warn);
+        }
+
+        /// <summary>
         /// Folded away by default. Almost everyone uses Steam, and an IP field plus a port
         /// field permanently on screen made the panel look like a network utility.
         /// </summary>
@@ -1005,6 +1145,9 @@ namespace InscryptionMP
 
             GUILayout.Space(Section);
             DrawDeckSection();
+
+            GUILayout.Space(Section);
+            DrawRulesSection();
 
             GUILayout.Space(Section);
             DrawStartButton();
@@ -1090,6 +1233,13 @@ namespace InscryptionMP
             GUILayout.Label("INCOMPATIBLE VERSIONS", _section);
             GUILayout.Label(Net.HandshakeError, _warn);
             GUILayout.Label("Both players need the same build of the mod.", _small);
+        }
+
+        /// <summary>Opens the deck table. Used by the autopilot to photograph it.</summary>
+        public static void OpenDeckTable()
+        {
+            if (_instance == null) return;
+            _instance.OpenCardView();
         }
 
         /// <summary>Opens the panel from the title screen's multiplayer card.</summary>

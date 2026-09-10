@@ -21,6 +21,17 @@ namespace InscryptionMP
         private static Thread _thread;
         private static volatile bool _running;
 
+        /// <summary>
+        /// Which attempt at a connection the shared fields belong to. Cancelling and starting
+        /// again leaves the old loop unwinding below Accept, and its cleanup would otherwise
+        /// mark the new one offline - reading happily while every send is dropped.
+        /// </summary>
+        private static volatile int _generation;
+
+        private static readonly object Gate = new object();
+
+        private static bool Current(int gen) => _generation == gen;
+
         private static readonly ConcurrentQueue<string> Inbox = new ConcurrentQueue<string>();
 
         private static bool TcpIsHost { get; set; }
@@ -42,6 +53,13 @@ namespace InscryptionMP
         /// <summary>Tears down TCP without touching Steam. Used when switching transport.</summary>
         internal static void ShutdownTcp()
         {
+            lock (Gate) StopTcp();
+        }
+
+        /// <summary>Drops the current connection and retires the loop that owns it.</summary>
+        private static void StopTcp()
+        {
+            _generation++;
             _running = false;
             TcpConnected = false;
             try { _writer?.Dispose(); } catch { }
@@ -54,76 +72,99 @@ namespace InscryptionMP
         public static void Host(int port = DefaultPort)
         {
             if (SteamTransport.Active) { Trace.Info("[net] leaving Steam lobby to host directly"); SteamTransport.Shutdown(); }
-            if (_running)
+
+            lock (Gate)
             {
-                Trace.Info($"[net] already {(Connected ? "connected" : "hosting")} - ignoring");
-                return;
+                if (_running)
+                {
+                    Trace.Info($"[net] already {(Connected ? "connected" : "hosting")} - ignoring");
+                    return;
+                }
+                Shutdown();   // also retires any loop still unwinding
+                TcpIsHost = true;
+                _running = true;
+                int gen = _generation;
+                _thread = new Thread(() => HostLoop(port, gen)) { IsBackground = true, Name = "InscryptionMP-Host" };
+                _thread.Start();
             }
-            Shutdown();
-            TcpIsHost = true;
-            _running = true;
-            _thread = new Thread(() => HostLoop(port)) { IsBackground = true, Name = "InscryptionMP-Host" };
-            _thread.Start();
             Trace.Info($"[net] hosting on port {port}, waiting for peer...");
         }
 
         public static void Join(string host, int port = DefaultPort)
         {
             if (SteamTransport.Active) { Trace.Info("[net] leaving Steam lobby to join directly"); SteamTransport.Shutdown(); }
-            if (_running)
+
+            lock (Gate)
             {
-                Trace.Info($"[net] already {(Connected ? "connected" : "connecting")} - ignoring");
-                return;
+                if (_running)
+                {
+                    Trace.Info($"[net] already {(Connected ? "connected" : "connecting")} - ignoring");
+                    return;
+                }
+                Shutdown();   // also retires any loop still unwinding
+                TcpIsHost = false;
+                _running = true;
+                int gen = _generation;
+                _thread = new Thread(() => JoinLoop(host, port, gen)) { IsBackground = true, Name = "InscryptionMP-Client" };
+                _thread.Start();
             }
-            Shutdown();
-            TcpIsHost = false;
-            _running = true;
-            _thread = new Thread(() => JoinLoop(host, port)) { IsBackground = true, Name = "InscryptionMP-Client" };
-            _thread.Start();
             Trace.Info($"[net] connecting to {host}:{port}...");
         }
 
-        private static void HostLoop(int port)
+        private static void HostLoop(int port, int gen)
         {
+            TcpListener listener = null;
             try
             {
-                _listener = new TcpListener(IPAddress.Any, port);
-                _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                _listener.Start();
+                listener = new TcpListener(IPAddress.Any, port);
+                listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                listener.Start();
+
+                lock (Gate)
+                {
+                    if (!Current(gen)) { listener.Stop(); return; }
+                    _listener = listener;
+                }
 
                 // Keep listening after a drop so a peer can come back mid-match.
-                while (_running)
+                while (Current(gen) && _running)
                 {
-                    _client = _listener.AcceptTcpClient();
+                    TcpClient client = listener.AcceptTcpClient();
                     Trace.Info("[net] peer connected.");
-                    Pump();
-                    TcpConnected = false;
+                    Pump(client, gen);
+                    lock (Gate) { if (!Current(gen)) return; TcpConnected = false; }
                     if (!_running) break;
                     Trace.Warn("[net] peer dropped - listening again");
                 }
             }
-            catch (Exception e) { if (_running) Trace.Error($"[net] host error: {e.Message}"); }
-            finally { TcpConnected = false; _running = false; }
+            catch (Exception e) { if (Current(gen) && _running) Trace.Error($"[net] host error: {e.Message}"); }
+            finally
+            {
+                try { if (listener != null) listener.Stop(); } catch { }
+                lock (Gate) { if (Current(gen)) { TcpConnected = false; _running = false; } }
+            }
         }
 
-        private static void JoinLoop(string host, int port)
+        private static void JoinLoop(string host, int port, int gen)
         {
             try
             {
                 // Retry so a client can rejoin a host that is still waiting.
-                while (_running)
+                while (Current(gen) && _running)
                 {
                     try
                     {
-                        _client = new TcpClient();
-                        _client.Connect(host, port);
+                        var client = new TcpClient();
+                        lock (Gate) { if (!Current(gen)) { client.Close(); return; } _client = client; }
+
+                        client.Connect(host, port);
                         Trace.Info("[net] connected to host.");
-                        Pump();
-                        TcpConnected = false;
+                        Pump(client, gen);
+                        lock (Gate) { if (!Current(gen)) return; TcpConnected = false; }
                     }
                     catch (Exception e)
                     {
-                        if (!_running) break;
+                        if (!Current(gen) || !_running) break;
 
                         // Only worth saying when the player is waiting on a connection.
                         if (!Reconnecting)
@@ -132,24 +173,37 @@ namespace InscryptionMP
                         Trace.Warn($"[net] connect failed ({e.Message}) - retrying");
                     }
 
-                    if (!_running || !Reconnecting) break;
+                    if (!Current(gen) || !_running || !Reconnecting) break;
                     Thread.Sleep(2000);
                 }
             }
-            catch (Exception e) { if (_running) Trace.Error($"[net] join error: {e.Message}"); }
-            finally { TcpConnected = false; _running = false; }
+            catch (Exception e) { if (Current(gen) && _running) Trace.Error($"[net] join error: {e.Message}"); }
+            finally { lock (Gate) { if (Current(gen)) { TcpConnected = false; _running = false; } } }
         }
 
-        private static void Pump()
+        private static void Pump(TcpClient client, int gen)
         {
-            var stream = _client.GetStream();
-            _writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\n" };
-            TcpConnected = true;
+            var stream = client.GetStream();
+            var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\n" };
+
+            lock (Gate)
+            {
+                if (!Current(gen))
+                {
+                    try { writer.Dispose(); } catch { }
+                    try { client.Close(); } catch { }
+                    return;
+                }
+                _client = client;
+                _writer = writer;
+                TcpConnected = true;
+            }
+
             SendHello();   // TCP never greeted the peer at all
             using (var reader = new StreamReader(stream))
             {
                 string line;
-                while (_running && (line = reader.ReadLine()) != null)
+                while (Current(gen) && _running && (line = reader.ReadLine()) != null)
                 {
                     line = line.Trim();
                     if (line.Length == 0) continue;
@@ -165,6 +219,12 @@ namespace InscryptionMP
             if (UseSteam) { SteamTransport.Send(msg); return; }
             if (!TcpConnected || _writer == null) { Trace.Warn($"[net] dropped (not connected): {msg}"); return; }
             try { _writer.WriteLine(msg); Trace.Info($"[net] -> {msg}"); }
+            catch (ObjectDisposedException)
+            {
+                // The peer went away between the check and the write. Nothing is wrong
+                // with us, so this is not the error it used to be logged as.
+                Trace.Warn($"[net] dropped (connection closed): {msg}");
+            }
             catch (Exception e) { Trace.Error($"[net] send failed: {e.Message}"); }
         }
 
@@ -189,6 +249,9 @@ namespace InscryptionMP
 
         /// <summary>Whether the peer can take part in the lobby vote.</summary>
         public static bool PeerSpeaksV4 => PeerProtocol >= 4;
+
+        /// <summary>Whether the peer can be told the match rules.</summary>
+        public static bool PeerSpeaksV5 => PeerProtocol >= 5;
 
         /// <summary>Set when the peer asks us to start a match.</summary>
         public static MatchAct? PendingStartRequest { get; set; }
@@ -273,8 +336,16 @@ namespace InscryptionMP
                 return true;
             }
 
-            if (line == Protocol.Won)  { PendingResult = false; return true; }   // peer won, so we lost
-            if (line == Protocol.Lost) { PendingResult = true;  return true; }
+            if (Protocol.TryParseRules(line, out string rules))
+            {
+                MatchRules.NoteHostRules(rules);
+                return true;
+            }
+
+            // The sender states our result, not theirs: they are the one who knows the
+            // match is over, and they are reporting it to us.
+            if (line == Protocol.YouWon)  { PendingResult = true;  return true; }
+            if (line == Protocol.YouLost) { PendingResult = false; return true; }
 
             if (Protocol.TryParseHello(line, out int proto, out string modVersion))
             {
@@ -365,19 +436,13 @@ namespace InscryptionMP
         public static void Shutdown()
         {
             if (SteamTransport.Active) SteamTransport.Shutdown();
-            _running = false;
-            TcpConnected = false;
-            try { _writer?.Dispose(); } catch { }
-            try { _client?.Close(); } catch { }
-            try { _listener?.Stop(); } catch { }
-            while (Inbox.TryDequeue(out _)) { }
+            lock (Gate) StopTcp();
             PendingResult = null;
             PendingStartRequest = null;
             HandshakeError = null;
             PeerVerified = false;
             PeerProtocol = Protocol.Version;
             Lobby.Reset();
-            _writer = null; _client = null; _listener = null;
         }
     }
 }

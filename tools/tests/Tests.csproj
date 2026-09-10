@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <AssemblyName>InscryptionMP.Tests</AssemblyName>
+    <RootNamespace>InscryptionMP.Tests</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <!-- The parts of the mod that don't touch Unity, compiled straight from src/ so the
+       tests run against the same source the plugin ships. -->
+  <ItemGroup>
+    <Compile Include="../../src/MatchAct.cs" />
+    <Compile Include="../../src/Rules.cs" />
+    <Compile Include="../../src/Protocol.cs" />
+    <Compile Include="Shims.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+</Project>

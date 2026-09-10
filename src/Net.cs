@@ -342,6 +342,24 @@ namespace InscryptionMP
                 return true;
             }
 
+            if (Protocol.TryParseName(line, out string peerName))
+            {
+                Player.NotePeerName(peerName);
+                return true;
+            }
+
+            if (Protocol.TryParseChat(line, out string said))
+            {
+                Chat.NoteIncoming(said);
+                return true;
+            }
+
+            if (Protocol.TryParseEmote(line, out int emote))
+            {
+                Chat.NoteEmote(emote);
+                return true;
+            }
+
             // The sender states our result, not theirs: they are the one who knows the
             // match is over, and they are reporting it to us.
             if (line == Protocol.YouWon)  { PendingResult = true;  return true; }
@@ -401,6 +419,7 @@ namespace InscryptionMP
             // Connected edge so it cannot land after their first vote has already arrived.
             Lobby.ResetForNewPeer();
             Send(Protocol.Hello);
+            Send(Protocol.NameLine(Player.LocalName));
         }
 
         /// <summary>

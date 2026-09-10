@@ -167,6 +167,8 @@ namespace InscryptionMP
             _myReady = false;
             _announcePending = true;
             MatchRules.ForgetPeer();
+            Player.ForgetPeer();
+            Chat.Clear();
 
             // A result belongs to the opponent it was won against. Carrying "You won" into
             // a lobby with somebody else is just untrue.

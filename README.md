@@ -26,9 +26,12 @@ over the network, against another person.
   they are played.
 - **Authoritative board sync** each turn, carrying each card's attack, health and any
   sigils it has picked up — so a buffed or damaged card reads the same on both screens.
-- **Match rules.** The host sets how cards are dealt — at random, the way the game normally
-  does, or **in order** off the top of the deck you built. Both players play under the same
-  rule, and the one who didn't choose it can see it before committing to the match.
+- **Nine match rules**, set by the host and played by both: card draw (random or in deck
+  order), damage to win, starting hand, draws a turn, deck size, sigils a card, side pile,
+  who goes first, and starting bones. Default is always one click away.
+- **A lobby.** Both players by name with their own ready state; the match starts the moment
+  it reads 2/2.
+- **Chat** in the corner of the screen, and fixed phrases on the number keys during a match.
 - **Deck builder** using the game's own 3D card table, paged, persisted to disk — one
   deck per act, each restricted to cards that act can actually draw and pay for. The deck
   has an order you can set, which is the order it is dealt in under the in-order rule.
@@ -78,15 +81,15 @@ handshake, not halfway into a match.
    being offered to anyone else, and picking one sets your act vote to the act it advertises.
 2. Both players pick an **act**. The tally under the buttons says who wants what; the
    match can only be the one you both chose, and each of you plays your own deck for it.
-3. The host sets the **match rules** under the act buttons. There is one so far — whether
-   cards are dealt at random or in the order you built your deck — and both of you play
-   under it. Changing it takes both players out of ready, so nobody starts a match under
-   rules they didn't see.
-4. Both players click **START MATCH**. The first click commits you and says so — `1/2` —
-   and the match loads once the second one lands. Clicking again takes it back.
-5. The host takes the first turn. Ring the bell to pass.
+3. The host sets the **match rules**, on their own screen. Nine of them; both of you play
+   under the same set, and the other player can read them before agreeing. Changing one
+   takes both players out of ready, so nobody starts a match under rules they didn't see.
+4. Both players press **READY**. The first press commits you and says so — `1/2` — and the
+   match starts once the second one lands. Pressing again takes it back.
+5. Whoever the rules say takes the first turn. Ring the bell to pass.
 
-**F7** menu · **F8** ready up · **F12** abort out of anything
+**F7** menu · **F8** ready up · **F12** abort out of anything · **1-6** say something in a
+match · chat lives in the bottom right corner
 
 ## Deck building
 

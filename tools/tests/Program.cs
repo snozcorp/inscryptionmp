@@ -70,6 +70,8 @@ namespace InscryptionMP.Tests
             Aims();
             Latches();
             Results();
+            Talking();
+            Dials();
 
             Console.WriteLine($"\n{_passed} passed, {_failed} failed");
             return _failed == 0 ? 0 : 1;
@@ -111,6 +113,59 @@ namespace InscryptionMP.Tests
             Eq(s, MatchAct.Act3, "start act");
         }
 
+        /// <summary>Names, typed lines and the fixed phrases.</summary>
+        private static void Talking()
+        {
+            Eq(Protocol.NameLine("snozcorp"), "NAME snozcorp", "a name encodes");
+            Check(Protocol.TryParseName("NAME snozcorp", out string who), "a name parses");
+            Eq(who, "snozcorp", "the name itself");
+            Check(!Protocol.TryParseName("NAME ", out _), "an empty name is refused");
+
+            // Chat carries the rest of the line, spaces and all - splitting on spaces
+            // would deliver "gg" out of "gg well played".
+            Eq(Protocol.ChatLine("gg well played"), "CHAT gg well played", "a line encodes");
+            Check(Protocol.TryParseChat("CHAT gg well played", out string said), "a line parses");
+            Eq(said, "gg well played", "the whole line survives");
+            Check(!Protocol.TryParseChat("CHAT", out _), "a chat with nothing in it is refused");
+            Check(Protocol.TryParseChat("CHAT :", out string colon), "punctuation is not special");
+            Eq(colon, ":", "a one-character line survives");
+
+            // Sent as a number so each build shows its own wording rather than the sender's.
+            Eq(Protocol.EmoteLine(2), "EMOTE 2", "an emote encodes");
+            Check(Protocol.TryParseEmote("EMOTE 2", out int emote), "an emote parses");
+            Eq(emote, 2, "the emote index");
+            Check(!Protocol.TryParseEmote("EMOTE x", out _), "a non-numeric emote is refused");
+        }
+
+        /// <summary>
+        /// Every dial has to be able to find the value it just set. A dial whose IndexOf
+        /// and WithIndex disagree looks like a button that does nothing.
+        /// </summary>
+        private static void Dials()
+        {
+            Eq(RuleBook.Dials.Length, 9, "the rules screen has nine dials");
+
+            foreach (RuleBook.Dial dial in RuleBook.Dials)
+            {
+                Check(dial.Choices.Length >= 2, dial.Key + " offers a choice");
+                Check(!string.IsNullOrEmpty(dial.Note), dial.Key + " says what it does");
+
+                for (int i = 0; i < dial.Choices.Length; i++)
+                {
+                    Rules turned = dial.WithIndex(Rules.Default, i);
+                    Eq(dial.IndexOf(turned), i, dial.Key + " finds position " + i + " again");
+
+                    // And it has to survive the wire, or the other player plays something else.
+                    Eq(dial.IndexOf(Rules.Decode(turned.Encode())), i,
+                       dial.Key + " position " + i + " round-trips");
+                }
+
+                Check(RuleBook.Find(dial.Key) == dial, dial.Key + " is findable by key");
+            }
+
+            Check(RuleBook.Find("nonsense") == null, "an unknown key finds nothing");
+        }
+
         private static void RulesWire()
         {
             Eq(Protocol.RulesLine("draw=order"), "RULES draw=order", "rules encode");
@@ -123,31 +178,72 @@ namespace InscryptionMP.Tests
 
         private static void RulesPayload()
         {
-            Eq(Rules.Default.Draw, CardDraw.Random, "the default deal is random");
-            Eq(Rules.Default.Encode(), "draw=random", "default encodes");
+            Rules d = Rules.Default;
+            Eq(d.Draw, CardDraw.Random, "the default deal is random");
+            Eq(d.DamageToWin, 5, "the default post is the game's own five");
+            Eq(d.StartingHand, 4, "the default hand is four");
+            Eq(d.DrawsPerTurn, 1, "the default is one draw a turn");
+            Eq(d.MaxDeck, 20, "the default deck cap is twenty");
+            Eq(d.SigilsPerCard, 2, "the default is two sigils a card");
+            Eq(d.Side, SidePile.Standard, "the default side pile is the act's own");
+            Eq(d.GuestFirst, false, "the host plays first by default");
+            Eq(d.StartingBones, 0, "you start with no bones");
+            Check(!d.Custom, "custom rules are off by default");
+            Check(d.IsVanilla, "the defaults are vanilla");
 
-            var order = new Rules { Draw = CardDraw.InOrder };
-            Eq(order.Encode(), "draw=order", "in-order encodes");
-            Eq(Rules.Decode(order.Encode()).Draw, CardDraw.InOrder, "in-order round-trips");
-            Eq(Rules.Decode(Rules.Default.Encode()).Draw, CardDraw.Random, "random round-trips");
+            // Everything at once, there and back, which is the case that matters: a rule
+            // that survives alone but not beside the others still loses a match.
+            var loud = new Rules
+            {
+                Custom = true,
+                Draw = CardDraw.InOrder,
+                DamageToWin = 10,
+                StartingHand = 6,
+                DrawsPerTurn = 2,
+                MaxDeck = 40,
+                SigilsPerCard = 4,
+                Side = SidePile.Bees,
+                GuestFirst = true,
+                StartingBones = 3,
+            };
+            Rules back = Rules.Decode(loud.Encode());
+            Check(back.SameAs(loud), "every rule at once round-trips");
+            Check(!back.IsVanilla, "a changed rule is not vanilla");
+            Check(!loud.SameAs(Rules.Default), "different rules compare unequal");
 
-            Eq(order.DrawName, "In order", "in-order reads as a phrase");
+            Eq(Rules.Decode(Rules.Default.Encode()).SameAs(Rules.Default), true,
+               "the defaults round-trip");
+
+            Eq(loud.DrawName, "In order", "in-order reads as a phrase");
             Eq(Rules.Default.DrawName, "Random", "random reads as a phrase");
-
-            Check(order.SameAs(new Rules { Draw = CardDraw.InOrder }), "same rules compare equal");
-            Check(!order.SameAs(Rules.Default), "different rules compare unequal");
+            Eq(loud.SideName, "Bees", "the side pile reads as a phrase");
 
             // A later build's extra keys must not take the rules it does understand with
             // them, and an unknown value must fall back rather than throw.
-            Eq(Rules.Decode("draw=order;handsize=5").Draw, CardDraw.InOrder,
+            Eq(Rules.Decode("draw=order;turntimer=30").Draw, CardDraw.InOrder,
                "an unknown key is skipped, not fatal");
-            Eq(Rules.Decode("handsize=5;draw=order").Draw, CardDraw.InOrder,
+            Eq(Rules.Decode("turntimer=30;draw=order").Draw, CardDraw.InOrder,
                "an unknown key first is also skipped");
             Eq(Rules.Decode("draw=sideways").Draw, CardDraw.Random, "an unknown value falls back");
+            Eq(Rules.Decode("side=purple").Side, SidePile.Standard, "an unknown side pile falls back");
             Eq(Rules.Decode("").Draw, CardDraw.Random, "an empty payload is the default");
             Eq(Rules.Decode(null).Draw, CardDraw.Random, "no payload is the default");
             Eq(Rules.Decode("garbage").Draw, CardDraw.Random, "junk is the default");
             Eq(Rules.Decode(" draw = order ").Draw, CardDraw.InOrder, "spaces around a pair are ignored");
+
+            // A number nobody should be able to send: zero damage to win is a match that
+            // is over before it starts, and a hand of 500 is one that never deals.
+            Eq(Rules.Decode("win=0").DamageToWin, 1, "a win post of zero is clamped up");
+            Eq(Rules.Decode("win=9999").DamageToWin, 20, "an absurd win post is clamped down");
+            Eq(Rules.Decode("hand=500").StartingHand, 10, "an absurd hand is clamped down");
+            Eq(Rules.Decode("deck=1").MaxDeck, 6, "a deck cap below the minimum is clamped up");
+            Eq(Rules.Decode("bones=-4").StartingBones, 0, "negative bones are clamped up");
+            Eq(Rules.Decode("win=notanumber").DamageToWin, 5, "a non-numeric value keeps the default");
+
+            // The summary is read by the player who did not set any of this.
+            Eq(Rules.Default.Summary(), "The game's own rules.", "vanilla says so plainly");
+            Check(loud.Summary().Contains("10 to win"), "the summary names the win post");
+            Check(loud.Summary().Contains("draw in order"), "the summary names the draw");
         }
 
         private static void Slots()

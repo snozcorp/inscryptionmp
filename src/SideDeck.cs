@@ -29,14 +29,26 @@ namespace InscryptionMP
             return pile;
         }
 
+        /// <summary>What the rules ask this act's pile to be made of, or null for none.</summary>
+        private static string CardFor(string standard)
+        {
+            switch (MatchRules.Live.Side)
+            {
+                case SidePile.None: return null;
+                case SidePile.Bees: return standard == "Squirrel" ? "Bee" : standard;
+                default:            return standard;
+            }
+        }
+
         [HarmonyPatch(typeof(Part1CardDrawPiles), "SideDeckData", MethodType.Getter)]
         [HarmonyPrefix]
         private static bool Squirrels(ref List<CardInfo> __result)
         {
             if (!VersusMode.VersusContext) return true;
 
-            __result = TenOf("Squirrel");
-            Trace.Info($"[side] versus: {__result.Count} squirrels, whatever the save says");
+            string card = CardFor("Squirrel");
+            __result = card == null ? new List<CardInfo>() : TenOf(card);
+            Trace.Info($"[side] versus: {__result.Count} x {card ?? "nothing"}, whatever the save says");
             return false;
         }
 
@@ -46,8 +58,9 @@ namespace InscryptionMP
         {
             if (!VersusMode.VersusContext) return true;
 
-            __result = TenOf("EmptyVessel");
-            Trace.Info($"[side] versus: {__result.Count} empty vessels, no gems and no mods");
+            string card = CardFor("EmptyVessel");
+            __result = card == null ? new List<CardInfo>() : TenOf(card);
+            Trace.Info($"[side] versus: {__result.Count} x {card ?? "nothing"}, no gems and no mods");
             return false;
         }
 

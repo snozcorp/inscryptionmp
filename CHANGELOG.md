@@ -4,14 +4,43 @@ Versions that were actually published. Dates are release dates.
 
 ## 1.5.0 — 2026-09-10
 
-The update that let you decide what order your deck comes out in.
+The update that let you set the rules, and put a lobby around them.
 
-**Card draw is a match rule now: Random, or In order.** In order deals off the top of your
-deck, in the order you built it, so the deck is a plan rather than a bag — the sequence is
-yours to set and the same every match. Random is the game's own deal and stays the default.
-The host picks; the other player sees which it is before they press start, and changing it
-takes both players out of ready so nobody is committed to a match they last looked at under
-different rules. Suggested by Zucker_Schock.
+**Nine match rules, set by the host.** Card draw, how far the scales have to tip to win,
+starting hand, draws a turn, deck size, sigils a card, what's in the side pile, who takes
+the first turn, and starting bones. They live on their own screen, they all travel to the
+other player, and both of you play under the same set. Default is one click away and is
+still the game's own rules.
+
+The one that changes the most is **damage to win**: Inscryption has no hit points, you win
+when your damage lead reaches five, and five was a constant compiled into four different
+places. Set it to 3 for a knife fight or 10 for a long game.
+
+**Card draw: Random, or In order.** In order deals off the top of your deck, in the order
+you built it, so the deck is a plan rather than a bag. Suggested by Zucker_Schock.
+
+**The panel is a menu now, not one long page.** It opens on four choices — Online play,
+Local play, Edit deck, Match rules — and each of them is its own screen. Before this every
+one of those was stacked onto a single panel that ran off the bottom of smaller windows.
+
+**A lobby that looks like one.** Both players by name, each with their own ready state, and
+one row each for the act, the deck and the rules. Press READY; it holds at 1/2 until the
+other one does, and the match starts the moment it says 2/2. Your name comes from Steam, or
+you can set one in the config for a direct connection.
+
+**Chat, in the corner.** A folded tab at the bottom right that opens into a log and a box —
+type, press enter, done. It stays there through the lobby, the deck table and the match, and
+tells you when there is something unread. During a match the number keys **1-6** say a fixed
+phrase without typing, because Inscryption reads the keyboard straight out of its update loop
+and a text field on the board would be fighting the game for every keystroke.
+
+**Both players get the same second pile, and you can turn it off.** Act 1's squirrel pile
+becomes ten *bees* once you've found the bee figurine in single player, and Act 3's vessels
+come with gems in them once you've fetched the gems module. A bee is 1/1 and airborne where
+a squirrel is 0/1, so two players in the same match were playing with materially different
+piles, decided by how far each of them had got in their own campaign and mentioned nowhere.
+Now it is the same for both, and it is a rule: standard, bees for everyone, or nothing at
+all, in which case your deck is all you draw from.
 
 **Your deck has an order, and you can set it.** In **View My Deck**, a selected card shows
 its draw position along the bottom with **Move Earlier** and **Move Later**. It matters under
@@ -26,13 +55,6 @@ For anyone wondering what the three squirrels in the starter deck were for: they
 squirrel supply. Act 1 has a second pile beside your deck holding ten of them and you can
 draw from it any turn, exactly as in the campaign. The three in the deck are simply what the
 campaign's own starting deck has.
-
-**Both players get the same second pile.** Act 1's squirrel pile becomes ten *bees* once
-you've found the bee figurine in single player, and Act 3's vessels come with gems in them
-once you've fetched the gems module. A bee is 1/1 and airborne where a squirrel is 0/1, so
-two players in the same match were playing with materially different piles, decided by how
-far each of them had got in their own campaign and mentioned nowhere. A versus deck already
-ignores campaign progression; now so does the pile next to it.
 
 **Alt-tabbing no longer stops your side of the match.** Unity does not update a window that
 isn't in front unless it is asked to, so clicking away froze your client where it stood:

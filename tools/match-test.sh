@@ -18,6 +18,8 @@ B_DIR="/c/Games/InscryptionClient2"
 
 ACT=1
 DRAW=order
+RULES=""
+EXPECT=""
 TURNS=4
 HOST_TURNS=""
 JOIN_TURNS=""
@@ -31,6 +33,8 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --act)      ACT="$2"; shift 2 ;;
     --draw)     DRAW="$2"; shift 2 ;;
+    --rules)    RULES="$2"; shift 2 ;;
+    --expect)   EXPECT="$2"; shift 2 ;;
     --turns)    TURNS="$2"; shift 2 ;;
     --host-turns) HOST_TURNS="$2"; shift 2 ;;
     --join-turns) JOIN_TURNS="$2"; shift 2 ;;
@@ -43,6 +47,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -n "$DECK_B" ] || DECK_B="$DECK_A"
+# A full rules payload replaces the draw shortcut rather than stacking on top of it.
+if [ -n "$RULES" ]; then DRAW=""; [ -n "$EXPECT" ] || EXPECT="$RULES"; fi
 [ -n "$HOST_TURNS" ] || HOST_TURNS="$TURNS"
 [ -n "$JOIN_TURNS" ] || JOIN_TURNS="$TURNS"
 
@@ -56,7 +62,8 @@ kill_clients() {
   sleep 2
 }
 
-echo "==> act $ACT, draw $DRAW, host $HOST_TURNS turns / join $JOIN_TURNS turns"
+echo "==> act $ACT, host $HOST_TURNS turns / join $JOIN_TURNS turns"
+if [ -n "$RULES" ]; then echo "==> rules: $RULES"; else echo "==> draw: $DRAW"; fi
 
 if [ "$BUILD" = "1" ]; then
   echo "==> building and deploying"
@@ -77,6 +84,8 @@ launch() {   # launch <dir> <mode> <deck> <turns>
   INSCRYPTIONMP_AUTOPILOT="$mode" \
   INSCRYPTIONMP_AUTOPILOT_ACT="$ACT" \
   INSCRYPTIONMP_AUTOPILOT_DRAW="$DRAW" \
+  INSCRYPTIONMP_AUTOPILOT_RULES="$RULES" \
+  INSCRYPTIONMP_AUTOPILOT_EXPECT="$EXPECT" \
   INSCRYPTIONMP_AUTOPILOT_DECK="$deck" \
   INSCRYPTIONMP_AUTOPILOT_TURNS="$turns" \
   INSCRYPTIONMP_AUTOPILOT_QUIT=1 \
@@ -124,7 +133,7 @@ for pair in "HOST:$A_LOG" "JOIN:$B_LOG"; do
   echo "================ $who ================"
   if [ ! -f "$log" ]; then echo "no trace log - the client never started"; verdict=1; continue; fi
 
-  grep -E '\[auto\]|\[rules\]|\[draw\]|\[side\]|\[match\]|ERROR' "$log" | sed 's/^[0-9:.]* //' || true
+  grep -E '\[auto\]|\[rules\]|\[draw\]|\[side\]|\[deal\]|\[chat\]|\[match\]|ERROR' "$log" | sed 's/^[0-9:.]* //' || true
 
   if ! grep -q '\[auto\] ==== RUN OK' "$log"; then verdict=1; fi
   if grep -q '\[auto\] FAIL' "$log"; then verdict=1; fi

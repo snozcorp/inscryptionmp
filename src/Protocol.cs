@@ -12,8 +12,9 @@ namespace InscryptionMP
         /// 4 added the lobby negotiation - VOTE and READY - so both players agree on an act
         /// and both commit before anything loads.
         ///
-        /// 5 added RULES, the host's house rules for the match. Its payload is a key=value
-        /// list, so a later rule is a key an older build skips rather than another version.
+        /// 5 added RULES, the host's house rules for the match, plus NAME, CHAT and EMOTE.
+        /// The rules payload is a key=value list, so a later rule is a key an older build
+        /// skips rather than another version.
         /// </summary>
         public const int Version = 5;
 
@@ -98,6 +99,46 @@ namespace InscryptionMP
             if (msg == null || !msg.StartsWith(RulesPrefix)) return false;
             payload = msg.Substring(RulesPrefix.Length).Trim();
             return true;
+        }
+
+        public const string NamePrefix = "NAME ";
+        public const string ChatPrefix = "CHAT ";
+        public const string EmotePrefix = "EMOTE ";
+
+        /// <summary>What the sender would like to be called in the lobby.</summary>
+        public static string NameLine(string name) => NamePrefix + name;
+
+        public static bool TryParseName(string msg, out string name)
+        {
+            name = null;
+            if (msg == null || !msg.StartsWith(NamePrefix)) return false;
+            name = msg.Substring(NamePrefix.Length).Trim();
+            return name.Length > 0;
+        }
+
+        /// <summary>Something the sender typed. The rest of the line, spaces and all.</summary>
+        public static string ChatLine(string text) => ChatPrefix + text;
+
+        public static bool TryParseChat(string msg, out string text)
+        {
+            text = null;
+            if (msg == null || !msg.StartsWith(ChatPrefix)) return false;
+            text = msg.Substring(ChatPrefix.Length);
+            return text.Length > 0;
+        }
+
+        /// <summary>
+        /// One of the fixed phrases, by position. Sent as a number so both players read it
+        /// in their own build's wording rather than the sender's.
+        /// </summary>
+        public static string EmoteLine(int index) => EmotePrefix + index;
+
+        public static bool TryParseEmote(string msg, out int index)
+        {
+            index = -1;
+            return msg != null
+                   && msg.StartsWith(EmotePrefix)
+                   && int.TryParse(msg.Substring(EmotePrefix.Length).Trim(), out index);
         }
 
         public const string SacrificePrefix = "SAC ";

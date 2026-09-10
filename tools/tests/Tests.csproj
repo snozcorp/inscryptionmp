@@ -13,6 +13,7 @@
   <ItemGroup>
     <Compile Include="../../src/MatchAct.cs" />
     <Compile Include="../../src/Rules.cs" />
+    <Compile Include="../../src/RuleBook.cs" />
     <Compile Include="../../src/Protocol.cs" />
     <Compile Include="Shims.cs" />
     <Compile Include="Program.cs" />

@@ -11,11 +11,16 @@ namespace InscryptionMP
     /// </summary>
     public static class DeckStore
     {
-        public const int MinCards = 6;
-        public const int MaxCards = 20;
+        public const int MinCards = DeckLimits.Min;
 
-        /// <summary>Sigils a player may add to one card.</summary>
-        public const int MaxAddedSigils = 2;
+        /// <summary>
+        /// The most cards a deck may hold, and the most sigils one card may wear. Both are
+        /// match rules, so the deck builder shows what the host has set rather than a
+        /// number that turns out to be wrong the moment you sit down.
+        /// </summary>
+        public static int MaxCards => MatchRules.Effective.MaxDeck;
+
+        public static int MaxAddedSigils => MatchRules.Effective.SigilsPerCard;
 
         private static readonly string[] NoSigils = new string[0];
 

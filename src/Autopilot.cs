@@ -30,6 +30,13 @@ namespace InscryptionMP
         public static int Port { get; private set; } = Net.DefaultPort;
         public static MatchAct Act { get; private set; } = MatchAct.Act1;
         public static string Draw { get; private set; }
+
+
+        /// <summary>A rules payload for the host to run the match under.</summary>
+        public static string RulesPayload { get; private set; }
+
+        /// <summary>What the locked rules must come out as, on both clients.</summary>
+        public static string Expect { get; private set; }
         public static string[] Deck { get; private set; }
         public static int MaxTurns { get; private set; } = 8;
         public static bool QuitWhenDone { get; private set; }
@@ -70,6 +77,8 @@ namespace InscryptionMP
 
             Draw = Env("INSCRYPTIONMP_AUTOPILOT_DRAW");
             Hold = Env("INSCRYPTIONMP_AUTOPILOT_HOLD");
+            RulesPayload = Env("INSCRYPTIONMP_AUTOPILOT_RULES");
+            Expect = Env("INSCRYPTIONMP_AUTOPILOT_EXPECT");
             QuitWhenDone = Env("INSCRYPTIONMP_AUTOPILOT_QUIT") == "1";
 
             string deck = Env("INSCRYPTIONMP_AUTOPILOT_DECK");
@@ -111,7 +120,11 @@ namespace InscryptionMP
 
             if (Mode == "host")
             {
-                if (Draw != null) MatchRules.SetDraw(Draw == "order" ? CardDraw.InOrder : CardDraw.Random);
+                string wanted = RulesPayload;
+                if (Draw != null)
+                    wanted = (wanted == null ? "" : wanted + ";") + "custom=1;draw=" + Draw;
+                if (wanted != null) MatchRules.Adopt(wanted);
+
                 Net.Host(Port);
             }
             else
@@ -144,8 +157,10 @@ namespace InscryptionMP
 
             Report(true, $"match started on {ActInfo.Name(ActInfo.Current)} " +
                          $"with rules {MatchRules.Live.Encode()}");
+            CheckRules();
 
             yield return PlayMatch(plugin);
+            CheckTalking();
             Finish(true, "run complete");
         }
 
@@ -170,6 +185,16 @@ namespace InscryptionMP
                 Trace.Info("[auto] deck table: card 3 selected");
 
                 if (Hold == "reorder") yield return CheckReordering();
+            }
+            else if (Hold == "rules")
+            {
+                Trace.Info("[auto] holding on the rules screen");
+                MpMenu.OpenRules();
+            }
+            else if (Hold == "chat")
+            {
+                Trace.Info("[auto] holding with the chat box open and focused");
+                MpMenu.OpenChat();
             }
             else
             {
@@ -296,6 +321,40 @@ namespace InscryptionMP
         }
 
         /// <summary>
+        /// Both clients have to have locked the same rules, and the ones that were asked
+        /// for. A rule that only takes on the host is a match the two of you are playing
+        /// differently without either screen saying so.
+        /// </summary>
+        private static void CheckRules()
+        {
+            Rules live = MatchRules.Live;
+
+            if (Expect != null)
+            {
+                Rules want = Rules.Decode(Expect);
+                bool ok = live.SameAs(want);
+                Report(ok, ok ? "the match locked the rules that were asked for"
+                              : $"rules are {live.Encode()}, wanted {want.Encode()}");
+            }
+
+            // The ones with a visible consequence get checked against the board rather
+            // than against the payload they came from.
+            bool weShouldStart = Net.IsHost ? !live.GuestFirst : live.GuestFirst;
+            Report(TurnOrder.IsMyTurn == weShouldStart,
+                   $"the right player has the first turn (ours={TurnOrder.IsMyTurn}, rule says {weShouldStart})");
+        }
+
+        /// <summary>Both directions of the chat, which is only provable from both ends.</summary>
+        private static void CheckTalking()
+        {
+            int heard = 0;
+            foreach (Chat.Line line in Chat.All)
+                if (!line.Mine && !line.System) heard++;
+
+            Report(heard > 0, $"heard {heard} line(s) from the opponent");
+        }
+
+        /// <summary>
         /// The act's browsable pool has to contain the cards the act plainly deals in. This
         /// is the squirrel check: they were missing from it until 1.5, so it is worth a
         /// line in the report rather than a manual look through the card table.
@@ -380,7 +439,21 @@ namespace InscryptionMP
                 if (!VersusMode.InMatch) break;
 
                 taken++;
-                Trace.Info($"[auto] turn {taken}: hand is {HandNames()}");
+                Trace.Info($"[auto] turn {taken}: hand is {HandNames()}, {Scales()}");
+
+                if (taken == 1)
+                {
+                    int held = Singleton<PlayerHand>.Instance.CardsInHand.Count;
+                    int want = MatchRules.Live.StartingHand;
+
+                    // Only the player who opens sees an untouched hand; the other one has
+                    // already taken a draw-phase card by the time they act.
+                    if (Net.IsHost ? !MatchRules.Live.GuestFirst : MatchRules.Live.GuestFirst)
+                        Report(held == want, $"opening hand is {held}, rule says {want}");
+
+                    Chat.Say("turn 1 from " + (Net.IsHost ? "the host" : "the guest"));
+                    Chat.Emote(0);
+                }
 
                 yield return PlayWhatWeCan();
 
@@ -395,6 +468,19 @@ namespace InscryptionMP
 
             Trace.Info($"[auto] played {taken} turn(s); match {(VersusMode.InMatch ? "still running" : "over")}" +
                        (VersusMode.LastResult == null ? "" : " - " + VersusMode.LastResult));
+        }
+
+        /// <summary>
+        /// Where the scales stand, read through the same property the game asks. With the
+        /// win post moved this is what proves the patch is live rather than the rule
+        /// merely being agreed on.
+        /// </summary>
+        private static string Scales()
+        {
+            var life = Singleton<LifeManager>.Instance;
+            if (life == null) return "no scales";
+            return $"balance {life.Balance}, {life.DamageUntilPlayerWin} to win " +
+                   $"(post at {MatchRules.Live.DamageToWin})";
         }
 
         private static string HandNames()

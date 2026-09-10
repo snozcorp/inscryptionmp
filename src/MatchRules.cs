@@ -29,33 +29,58 @@ namespace InscryptionMP
             Trace.Info($"[rules] loaded: {_desired.Encode()}");
         }
 
+        /// <summary>
+        /// Takes a whole set of rules in one go. The config file arrives this way and so
+        /// does a scripted run; a player turns the dials one at a time instead.
+        /// </summary>
+        public static void Adopt(string payload)
+        {
+            if (!WeDecide) return;
+
+            _desired = Rules.Decode(payload);
+            Trace.Info($"[rules] adopted: {_desired.Encode()}");
+            Changed();
+        }
+
         public static Rules Desired => _desired;
 
         /// <summary>Whether this client is the one that decides.</summary>
         public static bool WeDecide => !Net.Connected || Net.IsHost;
+
+        /// <summary>Whether the host has custom rules switched on at all.</summary>
+        public static bool CustomOn => Effective.Custom;
 
         /// <summary>
         /// True when a rule we asked for is being ignored because the opponent's build
         /// predates match rules and would play under the defaults regardless.
         /// </summary>
         public static bool DowngradedForPeer =>
-            Net.Connected && Net.IsHost && !Net.PeerSpeaksV5 && !_desired.SameAs(Rules.Default);
+            Net.Connected && Net.IsHost && !Net.PeerSpeaksV5 && _desired.Custom;
 
         /// <summary>What a match started right now would be played under.</summary>
         public static Rules Effective
         {
             get
             {
-                if (!Net.Connected) return _desired;
+                Rules mine = _desired.Custom ? _desired : Keeping(Rules.Default, _desired.Custom);
+
+                if (!Net.Connected) return mine;
 
                 // A peer that cannot be told the rules cannot play by them, and a match
                 // where one deck draws in order and the other doesn't is worse than one
                 // where neither does.
                 if (!Net.PeerSpeaksV5) return Rules.Default;
 
-                if (Net.IsHost) return _desired;
+                if (Net.IsHost) return mine;
                 return _fromHost ?? Rules.Default;
             }
+        }
+
+        /// <summary>Vanilla rules, but remembering whether the switch is on.</summary>
+        private static Rules Keeping(Rules b, bool custom)
+        {
+            b.Custom = custom;
+            return b;
         }
 
         /// <summary>The rules of the match that is actually running.</summary>
@@ -68,20 +93,54 @@ namespace InscryptionMP
             Trace.Info($"[rules] match locked to {_live.Encode()}");
         }
 
-        /// <summary>Sets a rule as the host. Returns true if anything changed.</summary>
-        public static bool SetDraw(CardDraw draw)
+        // ---------------------------------------------------------------- the host's side
+
+        /// <summary>Turns the whole custom set on or off without forgetting what it holds.</summary>
+        public static void SetCustom(bool on)
+        {
+            if (!WeDecide || _desired.Custom == on) return;
+
+            _desired.Custom = on;
+            Trace.Info("[rules] custom rules " + (on ? "on" : "off"));
+            Changed();
+        }
+
+        /// <summary>Steps one dial along. Returns false when it isn't ours to turn.</summary>
+        public static bool Cycle(string key, int delta)
         {
             if (!WeDecide) return false;
-            if (_desired.Draw == draw) return false;
 
-            _desired.Draw = draw;
+            RuleBook.Dial dial = RuleBook.Find(key);
+            if (dial == null) return false;
+
+            int count = dial.Choices.Length;
+            int next = (dial.IndexOf(_desired) + delta % count + count) % count;
+
+            _desired = dial.WithIndex(_desired, next);
+            _desired.Custom = true;   // turning a dial is asking for custom rules
+            Trace.Info($"[rules] {dial.Label} is now {dial.Choices[next]}");
+            Changed();
+            return true;
+        }
+
+        /// <summary>Puts every dial back to the game's own number.</summary>
+        public static void ResetToDefaults()
+        {
+            if (!WeDecide) return;
+
+            bool custom = _desired.Custom;
+            _desired = Keeping(Rules.Default, custom);
+            Trace.Info("[rules] reset to the game's own rules");
+            Changed();
+        }
+
+        private static void Changed()
+        {
             Persist();
-            Trace.Info($"[rules] card draw is now {_desired.DrawName}");
 
             // Nobody agreed to these. Both sides step out of ready so the match that
             // starts is the one both players last looked at.
             Lobby.NoteRulesChanged();
-            return true;
         }
 
         private static void Persist()
@@ -95,6 +154,8 @@ namespace InscryptionMP
                 Trace.Warn($"[rules] could not save: {e.Message}");
             }
         }
+
+        // -------------------------------------------------------------- the other side
 
         /// <summary>The host has told us what we're playing.</summary>
         public static void NoteHostRules(string payload)
@@ -122,6 +183,6 @@ namespace InscryptionMP
 
         /// <summary>The line the wire carries, or null when the peer can't read it.</summary>
         public static string Announcement =>
-            Net.PeerSpeaksV5 ? Protocol.RulesLine(_desired.Encode()) : null;
+            Net.PeerSpeaksV5 ? Protocol.RulesLine(Effective.Encode()) : null;
     }
 }

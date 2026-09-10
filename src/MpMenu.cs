@@ -25,8 +25,23 @@ namespace InscryptionMP
         private bool _open;
         private bool _matchWasActive;
 
-        /// <summary>Direct/LAN is a fallback, so it stays folded away until asked for.</summary>
-        private bool _showDirect;
+        /// <summary>Which of the panel's screens is in front.</summary>
+        /// <summary>
+        /// Which page the panel is on. One page does one thing: the front of the menu is a
+        /// list of the things you might have opened it for, and each of them is its own
+        /// screen rather than another block stacked onto the same one.
+        /// </summary>
+        private enum Page { Home, Online, Local, Deck, Rules }
+
+        private Page _page = Page.Home;
+
+        /// <summary>What is half-typed into the chat box.</summary>
+        private string _draft = "";
+
+        private Vector2 _chatScroll;
+
+        /// <summary>The dial whose note is being shown, so the rules screen can explain itself.</summary>
+        private string _explaining;
 
 
         private Rect _rect;
@@ -35,6 +50,9 @@ namespace InscryptionMP
         private GUIStyle _chip, _label, _dim, _header, _section, _field, _button, _small;
         private GUIStyle _primary, _quiet, _warn, _resultText, _good, _busy, _close, _pageLabel;
         private GUIStyle _countLabel, _version;
+        private GUIStyle _seat, _seatState, _seatReady;
+        private GUIStyle _chatLine, _chatMine, _chatSystem, _chatHead;
+        private GUIStyle _arrow, _dialValue;
         private GUIStyle _vote, _voteBoth;
         private GUIStyle _chipState, _chipInfo;
         private Texture2D _panelBg, _chipBg, _accent;
@@ -42,7 +60,9 @@ namespace InscryptionMP
         private void Update()
         {
             Background.Tick();
+            Chat.Pump();
             SteamTransport.Poll();
+            EmoteKeys();
 
             if (Input.GetKeyDown(KeyCode.F7))
             {
@@ -109,6 +129,24 @@ namespace InscryptionMP
             if (VersusMode.InMatch && !Net.Connected) VersusMode.NoteDisconnected();
             if (VersusMode.InMatch && Net.Connected && VersusMode.Suspended) VersusMode.NoteReconnected();
             VersusMode.TickSuspension(this);
+        }
+
+        /// <summary>
+        /// The number keys say one of the fixed phrases while a match is running. Only with
+        /// the panel and the card table shut, so they never fire out from under someone
+        /// typing.
+        /// </summary>
+        private void EmoteKeys()
+        {
+            if (NativeDeckBuilder.IsOpen || ChatHasFocus) return;
+            if (!Net.Connected || !VersusMode.InMatch) return;
+
+            for (int i = 0; i < Chat.Emotes.Length; i++)
+                if (Input.GetKeyDown(KeyCode.Alpha1 + i) || Input.GetKeyDown(KeyCode.Keypad1 + i))
+                {
+                    Chat.Emote(i);
+                    return;
+                }
         }
 
         private static int ParsedPort =>
@@ -203,7 +241,9 @@ namespace InscryptionMP
             foreach (GUIStyle st in new[] { _chip, _label, _dim, _small, _header, _section,
                                             _field, _button, _primary, _quiet, _warn, _good,
                                             _busy, _close, _resultText, _chipState, _chipInfo,
-                                            _pageLabel, _countLabel, _vote, _voteBoth, _version })
+                                            _pageLabel, _countLabel, _vote, _voteBoth, _version,
+                                            _seat, _seatState, _seatReady, _chatLine, _chatMine,
+                                            _chatSystem, _chatHead, _arrow, _dialValue })
             {
                 if (st == null) continue;
                 st.font = f;
@@ -297,6 +337,49 @@ namespace InscryptionMP
 
             _countLabel = new GUIStyle(_pageLabel) { alignment = TextAnchor.MiddleRight };
 
+            // A seat in the lobby: the name on the left, its state on the right, both on
+            // one baseline so two players read as a pair rather than two rows.
+            _seat = new GUIStyle(_label) { fontSize = 17, wordWrap = false };
+            _seatState = new GUIStyle(_label)
+            {
+                fontSize = 14,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleRight,
+                wordWrap = false,
+                normal = { textColor = BoneFaint },
+            };
+            _seatReady = new GUIStyle(_seatState) { normal = { textColor = Gold } };
+
+            _chatHead = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 13,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleLeft,
+                wordWrap = false,
+                padding = new RectOffset(2, 2, 0, 0),
+                normal = { textColor = Gold },
+                hover = { textColor = Bone },
+            };
+
+            _chatLine = new GUIStyle(_small) { fontSize = 14, wordWrap = true, normal = { textColor = Bone } };
+            _chatMine = new GUIStyle(_chatLine) { normal = { textColor = BoneDim } };
+            _chatSystem = new GUIStyle(_chatLine) { fontStyle = FontStyle.Italic, normal = { textColor = BoneFaint } };
+
+            _arrow = new GUIStyle(_button)
+            {
+                fontSize = 15,
+                padding = new RectOffset(0, 0, 8, 8),
+                alignment = TextAnchor.MiddleCenter,
+            };
+            _dialValue = new GUIStyle(_label)
+            {
+                fontSize = 16,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+                wordWrap = false,
+                normal = { textColor = Bone },
+            };
+
             // A width of its own and no wrapping. Sharing the title row with a flexible
             // space, the version was laid out one glyph narrower than it draws - every
             // release since 1.1 has quietly called itself "v1.4." on its own panel.
@@ -341,8 +424,12 @@ namespace InscryptionMP
             //
             // GUI.skin.label wraps by default, so a box even slightly too narrow keeps the
             // first word and drops the rest - "deck 8/20" rendered as "deck".
+            // Anything that is one line by nature. GUI.skin.label wraps by default, and a
+            // box even slightly too narrow keeps the first word and drops the rest - which
+            // is how the panel came to call itself "INSCRYPTION".
             foreach (GUIStyle st in new[] { _countLabel, _pageLabel, _section, _chipState,
-                                            _chipInfo, _vote, _voteBoth })
+                                            _chipInfo, _vote, _voteBoth, _header, _label,
+                                            _dim, _seat, _seatState, _seatReady, _dialValue })
                 if (st != null) st.wordWrap = false;
 
             ApplyFont();
@@ -365,6 +452,7 @@ namespace InscryptionMP
                 DrawCardViewHint();
                 GUI.matrix = barRestore;
 
+                DrawChatWindow();
                 DrawCursor();
                 return;
             }
@@ -376,6 +464,9 @@ namespace InscryptionMP
                 GUI.matrix = Matrix4x4.Scale(new Vector3(chipScale, chipScale, 1f));
                 DrawChip();
                 GUI.matrix = chipRestore;
+
+                DrawChatWindow();
+                DrawCursor();
                 return;
             }
 
@@ -399,6 +490,7 @@ namespace InscryptionMP
             // The cursor is drawn from raw screen coordinates, so it has to be outside
             // the scaled matrix or it lands in the wrong place.
             GUI.matrix = restore;
+            DrawChatWindow();
             DrawCursor();
         }
 
@@ -816,8 +908,12 @@ namespace InscryptionMP
             DrawTitle();
 
             if (VersusMode.InMatch) DrawMatchScreen();
-            else if (Net.Connected) DrawReadyScreen();
-            else DrawConnectScreen();
+            else if (_page == Page.Rules) DrawRulesScreen();
+            else if (_page == Page.Deck) DrawDeckScreen();
+            else if (_page == Page.Online) DrawOnlineScreen();
+            else if (_page == Page.Local) DrawLocalScreen();
+            else if (Net.Connected) DrawLobbyScreen();
+            else DrawHomeScreen();
 
             DrawNotice();
 
@@ -903,34 +999,139 @@ namespace InscryptionMP
             GUI.color = prev;
         }
 
-        // ------------------------------------------------------------------ connect
+        // --------------------------------------------------------------------- home
 
-        /// <summary>No opponent yet, so this screen is only about getting one.</summary>
-        private void DrawConnectScreen()
+        /// <summary>
+        /// One button per thing you might have opened the panel for. Everything behind
+        /// them used to be on this screen at once, which made the first thing you saw a
+        /// wall rather than a choice.
+        /// </summary>
+        private bool MenuItem(string label, string caption, bool primary = false)
         {
-            GUILayout.Label("Find someone to play", _dim);
+            bool hit = GUILayout.Button(label, primary ? _primary : _button, GUILayout.Height(46f));
+            GUILayout.Space(3f);
+            GUILayout.Label(caption, _small);
+            GUILayout.Space(Gap);
+            return hit;
+        }
+
+        /// <summary>A row of the lobby: what it is, what it is set to, and the way in.</summary>
+        private bool InfoRow(string label, string value, string action)
+        {
+            // The value gets a width of its own rather than measuring itself: left to
+            // expand it pushed the button clean off the side of the panel.
+            const float actionW = 118f;
+            float valueW = PanelW - Pad * 2f - 78f - actionW - 16f;
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(label, _section, GUILayout.Width(78f));
+            GUILayout.Label(value, _label, GUILayout.Width(valueW));
+            GUILayout.FlexibleSpace();
+            bool hit = GUILayout.Button(action, _button, GUILayout.Width(actionW), GUILayout.Height(32f));
+            GUILayout.EndHorizontal();
+            GUILayout.Space(8f);
+            return hit;
+        }
+
+        private void BackRow(string title)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(title, _section);
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Back", _quiet, GUILayout.Width(90f))) _page = Page.Home;
+            GUILayout.EndHorizontal();
+            GUILayout.Space(Gap);
+        }
+
+        /// <summary>What the deck row says about itself, wherever it is drawn.</summary>
+        private static string DeckSummary()
+        {
+            int n = DeckStore.Deck.Count;
+            return ActInfo.Name(ActInfo.Selected) + "  -  " + n + " card" + (n == 1 ? "" : "s")
+                   + (DeckStore.IsValid ? "" : "   (needs " + DeckStore.MinCards + "-"
+                                                + DeckStore.MaxCards + ")");
+        }
+
+        private void DrawHomeScreen()
+        {
+            if (Net.HandshakeError != null) { DrawHandshakeError(); return; }
+
+            // Hosting or dialling out is a state of its own: offering the menu while one is
+            // already in flight is how you end up with two lobbies and no opponent.
+            if (Net.Running && !Net.Connected) { DrawWaitingSection(); return; }
+
+            // Whichever of the two can actually be used leads.
+            bool steam = SteamTransport.Available;
+
+            if (MenuItem("ONLINE PLAY", steam
+                    ? "Host a Steam lobby, or find one to join."
+                    : "Steam isn't running - use local play instead.", primary: steam))
+                _page = Page.Online;
+
+            if (MenuItem("LOCAL PLAY", "Play over a LAN, or straight to an address.",
+                         primary: !steam))
+                _page = Page.Local;
+
+            if (MenuItem("EDIT DECK", DeckSummary())) _page = Page.Deck;
+
+            if (MenuItem("MATCH RULES", MatchRules.Effective.Custom
+                    ? "Custom  -  " + MatchRules.Effective.Summary()
+                    : "The game's own rules. Yours to set as host."))
+                _page = Page.Rules;
+        }
+
+        // ------------------------------------------------------------------- online
+
+        private void DrawOnlineScreen()
+        {
+            BackRow("ONLINE PLAY");
+
+            if (Net.Running && !Net.Connected) { DrawWaitingSection(); return; }
+
+            if (!SteamTransport.Available)
+            {
+                Say("Steam isn't running, so there are no lobbies to host or find.", _warn);
+                GUILayout.Space(Gap);
+                if (GUILayout.Button("Local play instead", _button, GUILayout.Height(38f)))
+                    _page = Page.Local;
+                return;
+            }
+
+            DrawFindSection();
+        }
+
+        // -------------------------------------------------------------------- local
+
+        private void DrawLocalScreen()
+        {
+            BackRow("LOCAL PLAY");
+
+            if (Net.Running && !Net.Connected) { DrawWaitingSection(); return; }
+
+            Say("One of you hosts and reads out their address; the other joins it. "
+                + "On the same network, that address is the host's local IP.", _small);
             GUILayout.Space(Gap);
 
-            if (Net.HandshakeError != null) DrawHandshakeError();
+            GUILayout.BeginHorizontal();
+            Ip = GUILayout.TextField(Ip, _field);
+            GUILayout.Label(":", _label, GUILayout.Width(8f));
+            PortText = GUILayout.TextField(PortText, _field, GUILayout.Width(70f));
+            GUILayout.EndHorizontal();
 
-            // Hosting or dialling out is a state of its own: offering Host and Find while one
-            // is already in flight is how you end up with two lobbies and no opponent.
-            if (Net.Running && !Net.Connected) DrawWaitingSection();
-            else if (!SteamTransport.Available)
-            {
-                Say("Steam not detected - use a direct address.", _small);
-                _showDirect = true;
-            }
-            else DrawFindSection();
+            GUILayout.Space(Gap);
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Host", _primary, GUILayout.Height(40f))) Net.Host(ParsedPort);
+            GUILayout.Space(8f);
+            if (GUILayout.Button("Join", _primary, GUILayout.Height(40f))) Net.Join(Ip, ParsedPort);
+            GUILayout.EndHorizontal();
+        }
 
-            GUILayout.Space(Section);
+        // --------------------------------------------------------------------- deck
+
+        private void DrawDeckScreen()
+        {
+            BackRow("ACT AND DECK");
             DrawDeckSection();
-
-            GUILayout.Space(Section);
-            DrawRulesSection();
-
-            GUILayout.Space(Section);
-            DrawDirectSection();
         }
 
         /// <summary>Waiting on a peer that hasn't turned up yet - and the way out of it.</summary>
@@ -1032,9 +1233,9 @@ namespace InscryptionMP
             }
 
             GUILayout.Space(Gap);
-            if (GUILayout.Button("Edit " + ActInfo.Name(ActInfo.Selected) + " deck   ("
+            if (GUILayout.Button("Open the card table   ("
                                  + DeckStore.Deck.Count + "/" + DeckStore.MaxCards + ")",
-                                 _button, GUILayout.Height(38f)))
+                                 _primary, GUILayout.Height(40f)))
                 OpenCardView();
 
             if (!DeckStore.IsValid)
@@ -1043,90 +1244,102 @@ namespace InscryptionMP
                 Say(NativeDeckBuilder.LastError, _warn);
         }
 
-        /// <summary>
-        /// The house rules for the next match. The host sets them; the other player reads
-        /// them before pressing start, which is what makes pressing start mean something.
-        /// </summary>
-        private void DrawRulesSection()
-        {
-            GUILayout.Label("MATCH RULES", _section);
+        // -------------------------------------------------------------------- rules
 
+        /// <summary>
+        /// Every dial, on its own screen. It is a screen rather than a section because
+        /// nine settings under the act buttons buries the two things you came here to do.
+        /// </summary>
+        private void DrawRulesScreen()
+        {
             bool ours = MatchRules.WeDecide;
-            CardDraw draw = MatchRules.Effective.Draw;
+            Rules rules = MatchRules.Effective;
 
+            BackRow(ours ? "SET THE RULES" : "THE HOST'S RULES");
+
+            const float labelW = 150f;
+            const float arrowW = 34f;
+            const float gap = 6f;
+            float valueW = PanelW - Pad * 2f - labelW - (arrowW + gap) * 2f;
+
+            foreach (RuleBook.Dial dial in RuleBook.Dials)
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.Label(dial.Label, _dim, GUILayout.Width(labelW));
+
+                GUI.enabled = ours;
+                if (GUILayout.Button("<", _arrow, GUILayout.Width(arrowW), GUILayout.Height(30f)))
+                {
+                    MatchRules.Cycle(dial.Key, -1);
+                    _explaining = dial.Key;
+                }
+                GUILayout.Space(gap);
+
+                GUILayout.Label(dial.TextOf(rules), _dialValue,
+                                GUILayout.Width(valueW), GUILayout.Height(30f));
+
+                GUILayout.Space(gap);
+                if (GUILayout.Button(">", _arrow, GUILayout.Width(arrowW), GUILayout.Height(30f)))
+                {
+                    MatchRules.Cycle(dial.Key, 1);
+                    _explaining = dial.Key;
+                }
+                GUI.enabled = true;
+                GUILayout.EndHorizontal();
+                GUILayout.Space(2f);
+            }
+
+            GUILayout.Space(Gap);
+
+            // One note at a time, for whichever dial was last touched. Nine notes on screen
+            // at once is a wall nobody reads.
+            RuleBook.Dial shown = _explaining == null ? null : RuleBook.Find(_explaining);
+            GUILayout.Label(shown != null ? shown.Note : "Change a rule to read what it does.",
+                            _small);
+
+            if (!ours)
+            {
+                GUILayout.Space(Gap);
+                Say("Only the host can change these. You play under whatever they set.", _busy);
+                return;
+            }
+
+            GUILayout.Space(Gap);
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Card draw", _dim, GUILayout.Width(110f));
-
-            if (ours)
+            if (GUILayout.Button("Reset to the game's rules", _quiet, GUILayout.Height(34f)))
             {
-                const float ruleGap = 8f;
-                float ruleW = (PanelW - Pad * 2f - 110f - ruleGap) / 2f;
-
-                if (GUILayout.Button("Random", draw == CardDraw.Random ? _primary : _button,
-                                     GUILayout.Width(ruleW), GUILayout.Height(34f)))
-                    MatchRules.SetDraw(CardDraw.Random);
-
-                GUILayout.Space(ruleGap);
-                if (GUILayout.Button("In order", draw == CardDraw.InOrder ? _primary : _button,
-                                     GUILayout.Width(ruleW), GUILayout.Height(34f)))
-                    MatchRules.SetDraw(CardDraw.InOrder);
+                MatchRules.ResetToDefaults();
+                _explaining = null;
             }
-            else
-            {
-                GUILayout.Label(MatchRules.Effective.DrawName + "   (set by the host)", _label);
-                GUILayout.FlexibleSpace();
-            }
+            GUILayout.Space(8f);
+            if (GUILayout.Button("Done", _primary, GUILayout.Width(120f), GUILayout.Height(34f)))
+                _page = Page.Home;
             GUILayout.EndHorizontal();
 
-            GUILayout.Space(4f);
-            Say(draw == CardDraw.InOrder
-                ? "Cards come off the top of your deck, in the order you built it."
-                : "Cards come out of your deck at random, the way the game normally deals.",
-                _small);
-
-            if (MatchRules.DowngradedForPeer)
-                Say("Their build is older and can't be told the rules - this match uses the defaults.",
-                    _warn);
+            if (!rules.Custom)
+            {
+                GUILayout.Space(4f);
+                Say("Custom rules are switched off, so the match will use the defaults.", _warn);
+            }
         }
+
+        // -------------------------------------------------------------------- lobby
 
         /// <summary>
-        /// Folded away by default. Almost everyone uses Steam, and an IP field plus a port
-        /// field permanently on screen made the panel look like a network utility.
+        /// Two people in a room deciding what to play. Both seats are on screen with what
+        /// each of them has committed to, because "1/2" only means something once you can
+        /// see which one of you it is.
         /// </summary>
-        private void DrawDirectSection()
-        {
-            if (SteamTransport.Available)
-            {
-                string arrow = _showDirect ? "v" : ">";
-                if (GUILayout.Button(arrow + "  Direct connect (LAN / non-Steam)", _quiet))
-                    _showDirect = !_showDirect;
-                if (!_showDirect) return;
-                GUILayout.Space(6f);
-            }
-
-            GUILayout.BeginHorizontal();
-            Ip = GUILayout.TextField(Ip, _field);
-            GUILayout.Label(":", _label, GUILayout.Width(8f));
-            PortText = GUILayout.TextField(PortText, _field, GUILayout.Width(70f));
-            GUILayout.EndHorizontal();
-
-            GUILayout.Space(6f);
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Host", _button)) Net.Host(ParsedPort);
-            GUILayout.Space(8f);
-            if (GUILayout.Button("Join", _button)) Net.Join(Ip, ParsedPort);
-            GUILayout.EndHorizontal();
-        }
-
-        // -------------------------------------------------------------------- ready
-
-        /// <summary>Connected and out of a match: pick an act, check the deck, go.</summary>
-        private void DrawReadyScreen()
+        private void DrawLobbyScreen()
         {
             GUILayout.BeginHorizontal();
-            Say(Net.StatusLine, _label);
+            GUILayout.Label("LOBBY", _section);
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Disconnect", _quiet, GUILayout.Width(100f))) Net.Shutdown();
+            if (GUILayout.Button("Leave", _quiet, GUILayout.Width(100f)))
+            {
+                Net.Shutdown();
+                _page = Page.Home;
+            }
             GUILayout.EndHorizontal();
 
             if (Net.HandshakeError != null)
@@ -1136,6 +1349,9 @@ namespace InscryptionMP
                 return;   // nothing below this is usable until the versions agree
             }
 
+            GUILayout.Space(8f);
+            DrawSeats();
+
             // The result of the last match doubles as the invitation to play another.
             if (VersusMode.LastResult != null)
             {
@@ -1144,20 +1360,203 @@ namespace InscryptionMP
             }
 
             GUILayout.Space(Section);
-            DrawDeckSection();
+
+            string actLine = ActInfo.Name(ActInfo.Selected)
+                + (!Lobby.Negotiating ? ""
+                   : Lobby.ActAgreed ? "  -  you both agree"
+                   : Lobby.PeerAct.HasValue ? "  -  they want " + ActInfo.Name(Lobby.PeerAct.Value)
+                   : "  -  waiting on them");
+
+            if (InfoRow("ACT", actLine, "Change")) _page = Page.Deck;
+            if (InfoRow("DECK", DeckSummary(), "Edit")) OpenCardView();
+
+            // The row itself stays short so the button always has its place; what actually
+            // changed goes underneath, where it can wrap.
+            Rules live = MatchRules.Effective;
+            if (InfoRow("RULES", live.Custom ? "Custom" : "The game's own rules",
+                        MatchRules.WeDecide ? "Change" : "See all"))
+            {
+                _explaining = null;
+                _page = Page.Rules;
+            }
+
+            if (live.Custom && !live.IsVanilla)
+            {
+                GUILayout.Space(-4f);
+                Say(live.Summary(), _good);
+                GUILayout.Space(8f);
+            }
+
+            if (MatchRules.DowngradedForPeer)
+                Say("Their build is older and can't be told the rules - this match uses the defaults.",
+                    _warn);
 
             GUILayout.Space(Section);
-            DrawRulesSection();
+            DrawReadyButton();
 
-            GUILayout.Space(Section);
-            DrawStartButton();
+        }
+
+        /// <summary>The two players and where each of them stands.</summary>
+        private void DrawSeats()
+        {
+            Seat(Net.IsHost ? Player.LocalName : Player.PeerName,
+                 host: true,
+                 ready: Net.IsHost ? Lobby.MyReady : Lobby.PeerReady,
+                 you: Net.IsHost);
+
+            Seat(Net.IsHost ? Player.PeerName : Player.LocalName,
+                 host: false,
+                 ready: Net.IsHost ? Lobby.PeerReady : Lobby.MyReady,
+                 you: !Net.IsHost);
+        }
+
+        private void Seat(string name, bool host, bool ready, bool you)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label((ready ? "*  " : "-  ") + name + (host ? "   (host)" : "")
+                            + (you ? "   - you" : ""),
+                            _seat);
+            GUILayout.FlexibleSpace();
+            GUILayout.Label(ready ? "READY" : "not ready", ready ? _seatReady : _seatState,
+                            GUILayout.Width(110f));
+            GUILayout.EndHorizontal();
+        }
+
+        // --------------------------------------------------------------------- chat
+
+        private const float ChatW = 330f;
+        private const float ChatLogH = 132f;
+
+        /// <summary>Folded away until there is something to say. Remembered per session.</summary>
+        private bool _chatOpen;
+
+        /// <summary>Whether the chat box had the keyboard last time we drew it.</summary>
+        internal static bool ChatHasFocus { get; private set; }
+
+        /// <summary>How many lines had been said when the box was last looked at.</summary>
+        private int _chatSeen;
+
+        /// <summary>Set after sending, so the box takes the keyboard back next frame.</summary>
+        private bool _refocusChat;
+
+        private bool Unread => Chat.Count > _chatSeen;
+
+        /// <summary>
+        /// Its own window in the corner rather than a section of the panel: it belongs to
+        /// the whole session, not to one screen, and the panel had enough in it already.
+        /// Drawn over the board during a match too, which is the only time it matters.
+        /// </summary>
+        private void DrawChatWindow()
+        {
+            if (!Net.Connected) return;
+
+            float scale = FitWidth(ChatW + 60f);
+            Matrix4x4 restore = GUI.matrix;
+            GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
+
+            float vw = Screen.width / scale;
+            float vh = Screen.height / scale;
+
+            const float pad = 10f, headH = 30f, rowH = 30f, margin = 16f;
+            float bodyH = _chatOpen ? ChatLogH + rowH + pad : 0f;
+            float h = headH + bodyH + pad;
+
+            // Folded it is a tab, not an empty panel: a wide blank box in the corner reads
+            // as something that failed to draw.
+            float w = _chatOpen ? ChatW : 150f;
+            var box = new Rect(vw - w - margin, vh - h - margin, w, h);
+
+            GUI.DrawTexture(box, _chipBg);
+            Frame(box, Unread && !_chatOpen ? Gold : GoldSoft);
+
+            // The header doubles as the fold: one click, and it says what it is hiding.
+            string head = _chatOpen ? "CHAT" : Unread ? "CHAT   " + (Chat.Count - _chatSeen) + " new"
+                                                      : "CHAT";
+            var headRect = new Rect(box.x + pad, box.y + pad * 0.5f, box.width - pad * 2f, headH);
+
+            if (GUI.Button(headRect, head + (_chatOpen ? "   -" : "   +"), _chatHead))
+            {
+                _chatOpen = !_chatOpen;
+                if (_chatOpen) _chatSeen = Chat.Count;
+            }
+
+            if (!_chatOpen) { GUI.matrix = restore; return; }
+            _chatSeen = Chat.Count;
+
+            GUILayout.BeginArea(new Rect(box.x + pad, box.y + headH + pad * 0.5f,
+                                         box.width - pad * 2f, bodyH));
+
+            _chatScroll = GUILayout.BeginScrollView(_chatScroll, GUILayout.Height(ChatLogH));
+            if (Chat.Count == 0)
+            {
+                GUILayout.Label(VersusMode.InMatch
+                    ? "Keys 1-" + Chat.Emotes.Length + " say something without typing."
+                    : "Say hello.", _chatSystem);
+            }
+            else
+            {
+                foreach (Chat.Line line in Chat.All)
+                {
+                    GUIStyle style = line.System ? _chatSystem : line.Mine ? _chatMine : _chatLine;
+                    GUILayout.Label(line.System ? line.Text : line.Who + ":  " + line.Text, style);
+                }
+            }
+            GUILayout.EndScrollView();
+
+            GUILayout.Space(4f);
+
+            // Caught before the field is drawn, and consumed. A text field handles the
+            // event first if you let it, so a check underneath never sees the Return -
+            // which is why the button worked and the key did nothing.
+            bool entered = Event.current.type == EventType.KeyDown
+                           && (Event.current.keyCode == KeyCode.Return
+                               || Event.current.keyCode == KeyCode.KeypadEnter)
+                           && GUI.GetNameOfFocusedControl() == "mp-chat";
+
+            if (entered) Event.current.Use();
+
+            GUILayout.BeginHorizontal();
+
+            GUI.SetNextControlName("mp-chat");
+            _draft = GUILayout.TextField(_draft, Chat.MaxLength, _field);
+            GUILayout.Space(6f);
+            bool send = GUILayout.Button("Send", _button, GUILayout.Width(72f));
+
+            GUILayout.EndHorizontal();
+            GUILayout.EndArea();
+
+            ChatHasFocus = GUI.GetNameOfFocusedControl() == "mp-chat";
+
+            if (send || entered)
+            {
+                if (Chat.Say(_draft))
+                {
+                    _draft = "";
+
+                    // The field keeps its own copy of the text while it has the keyboard,
+                    // so clearing the string alone leaves what you just sent sitting in
+                    // the box. Dropping focus makes it read the empty one back.
+                    GUIUtility.keyboardControl = 0;
+                    _refocusChat = true;
+                }
+                _chatSeen = Chat.Count;
+            }
+
+            // Asked for on the frame after, so you can keep typing without clicking back.
+            if (_refocusChat && Event.current.type == EventType.Repaint)
+            {
+                _refocusChat = false;
+                GUI.FocusControl("mp-chat");
+            }
+
+            GUI.matrix = restore;
         }
 
         /// <summary>
         /// Starting is a commitment from both players, not a command one gives the other. The
         /// button records yours and lights up for real once theirs arrives.
         /// </summary>
-        private void DrawStartButton()
+        private void DrawReadyButton()
         {
             // Loading a scene takes a couple of seconds. Without this the button looked
             // like it had done nothing.
@@ -1183,10 +1582,9 @@ namespace InscryptionMP
             }
 
             string blocker = Lobby.Blocker;
-            string verb = VersusMode.LastResult != null ? "PLAY AGAIN" : "START MATCH";
             string label = busy || Lobby.BothReady ? "STARTING..."
                          : Lobby.MyReady ? "WAITING FOR OPPONENT   " + Lobby.ReadyCount + "/2"
-                         : verb + "   " + Lobby.ReadyCount + "/2";
+                         : "READY   " + Lobby.ReadyCount + "/2";
 
             // Backing out of a commitment stays available even when something else has since
             // gone wrong - otherwise a disagreement over acts strands you as permanently ready.
@@ -1198,7 +1596,7 @@ namespace InscryptionMP
             GUILayout.Space(4f);
             if (blocker != null) Say(blocker, _warn);
             else if (Lobby.MyReady) Say("Press again to take it back.", _small);
-            else Say("The match loads once both of you have pressed start.", _small);
+            else Say("The match starts the moment both of you are ready.", _small);
         }
 
         // -------------------------------------------------------------------- match
@@ -1213,6 +1611,12 @@ namespace InscryptionMP
                             TurnOrder.IsMyTurn ? _resultText : _label);
             GUILayout.Label(ActInfo.Name(ActInfo.Current) + "  -  " + Net.StatusLine, _small);
 
+            if (!MatchRules.Live.IsVanilla)
+            {
+                GUILayout.Space(4f);
+                GUILayout.Label(MatchRules.Live.Summary(), _good);
+            }
+
             if (VersusMode.Suspended)
             {
                 GUILayout.Space(Gap);
@@ -1221,6 +1625,7 @@ namespace InscryptionMP
                                 + Mathf.CeilToInt(VersusMode.SuspendedSecondsLeft) + "s.", _small);
                 GUILayout.Label("They can relaunch and rejoin - nothing is lost.", _small);
             }
+
 
             GUILayout.Space(Gap);
             if (GUILayout.Button(VersusMode.Suspended ? "Give Up Waiting" : "Abort Match",
@@ -1233,6 +1638,22 @@ namespace InscryptionMP
             GUILayout.Label("INCOMPATIBLE VERSIONS", _section);
             GUILayout.Label(Net.HandshakeError, _warn);
             GUILayout.Label("Both players need the same build of the mod.", _small);
+        }
+
+        /// <summary>Opens the chat box and puts the cursor in it. Used by the autopilot.</summary>
+        public static void OpenChat()
+        {
+            if (_instance == null) return;
+            _instance._chatOpen = true;
+            _instance._refocusChat = true;
+        }
+
+        /// <summary>Opens the panel straight onto the rules. Used by the autopilot.</summary>
+        public static void OpenRules()
+        {
+            if (_instance == null) return;
+            _instance._open = true;
+            _instance._page = Page.Rules;
         }
 
         /// <summary>Opens the deck table. Used by the autopilot to photograph it.</summary>

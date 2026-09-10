@@ -306,9 +306,10 @@ namespace InscryptionMP
             // just finished, and applying it here would materialise phantom cards.
             Net.FlushInbox();
 
-            // The host takes the first turn; the joiner waits. Without this both clients
-            // play simultaneously and never see each other's cards until a bell rings.
-            TurnOrder.BeginMatch(Net.IsHost);
+            // One of us goes first and the other waits. Without this both clients play
+            // simultaneously and never see each other's cards until a bell rings.
+            bool guestFirst = MatchRules.Live.GuestFirst;
+            TurnOrder.BeginMatch(Net.IsHost ? !guestFirst : guestFirst);
 
             Trace.Info("[versus] starting match");
 

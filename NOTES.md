@@ -109,6 +109,25 @@ Learned bringing up the other acts. All verified against Assembly-CSharp, not gu
   reward. In a versus match it is two people playing with different piles for reasons
   neither of them can see.
 
+### The numbers a match is made of are constants, not settings
+Everything a house rule would want to change is compiled in rather than stored:
+
+- **The win post is `LifeManager.GOAL_BALANCE = 5`**, and it is inlined into
+  `LifeManager.DamageUntilPlayerWin` and three *private* TurnManager checks -
+  `GameIsOver`, `ScalesTippedToOpponent`, `LifeLossConditionsMet`. Moving it means
+  answering all four, which is two lines of arithmetic each; `PlayerIsWinner` needs no
+  patch because it reads the opponent's lives, which the patched `ScalesTippedToOpponent`
+  already decides. Act 1's scales are a physics simulation, so a higher post just leans
+  the balance further rather than saturating.
+- **The opening hand is the literal `4`, twice.** `CardDrawPiles3D.DrawOpeningHand` and
+  `GBC.PixelCardDrawPiles.DrawOpeningHand` each write it into their own body, and the GBC
+  one also loops `for (int i = 0; i < 4; i++)` - so changing what `GetFairHand` returns
+  moves which cards you get and not how many.
+- **`NumDrawPhaseDraws` is overridden.** Patching `CardDrawPiles`'s getter alone leaves
+  Acts 1 and 3 on the base number, because `CardDrawPiles3D` has its own.
+- `ResourcesManager` is per-act, so anything handed out at the start hangs off
+  `TurnManager.SetupPhase` instead, which runs for all three.
+
 ### Two that cost real time
 - **Patching an overloaded method by name throws `AmbiguousMatchException` — during
   `PatchAll`.** That aborts the entire pass, so *every* patch in the mod silently fails to
@@ -142,6 +161,9 @@ HELLO <proto> <modVersion>    greeting; both sides send it on connect
 VOTE <act>                    which act the sender wants to play
 READY 0 | READY 1             whether the sender has committed to starting it
 RULES <k=v;k=v>               the host's house rules for the match
+NAME <text>                   what the sender would like to be called
+CHAT <text>                   something the sender typed
+EMOTE <n>                     one of the fixed phrases, by position
 START <act>                   begin a match on act 1, 2 or 3
 PLAY <cardName> <slotIndex>   peer played a card into their player slot N
 SAC <slotIndex>               peer sacrificed the card in that slot
@@ -158,8 +180,13 @@ conceding by walking out sends `OVER WON` - but until 1.5 the reading end took i
 sender's own result and printed the opposite, so quitting told your opponent they had lost.
 The strings are unchanged, which is why a 1.4 peer's report is still read correctly.
 
+`EMOTE` carries a position rather than the words, so each build shows the phrase in its own
+wording rather than the sender's.
+
 `RULES` is a key=value list rather than a fixed set of fields, so the next rule is a key an
-older build skips instead of protocol 6. Only the host sends it, because both clients run
+older build skips instead of protocol 6. Nine keys so far; every numeric one is clamped on
+the way in, because a peer that sends `win=0` would otherwise produce a match that is over
+before it starts. Only the host sends it, because both clients run
 their own battle against their own deck and a rule that changes how a deck behaves is only
 fair if one side decides it for both. A peer that speaks 4 or less cannot be told, so the
 match falls back to the defaults on both sides rather than one of them quietly playing a
@@ -203,7 +230,9 @@ would load Act 1's cabin while the other loaded Act 3's board.
 - [x] Player-chosen sigils on deck cards
 - [x] A multiplayer card on the title screen
 - [x] Both players vote on the act and both commit before a match loads
-- [x] Match rules on the wire; card draw random or in deck order
+- [x] Match rules on the wire: nine of them, host-set, both clients bound by them
+- [x] The five hardcoded numbers that make a match: win post, hand, draws, side pile, first
+      turn - all of them constants compiled into the game rather than fields to set
 - [x] Deck order the player sets, and the deck dealt in it
 - [x] Two real clients playing a whole match with nobody at either keyboard
 

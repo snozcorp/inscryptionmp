@@ -50,6 +50,10 @@ namespace InscryptionMP
                 + "deals the way the game normally does, draw=order deals off the top of "
                 + "your deck."));
 
+            Player.Bind(Config.Bind("Match", "Name", "",
+                "What the other player sees you called in the lobby. Left empty it uses "
+                + "your Steam name, and falls back to which seat you are in."));
+
             Autopilot.Boot(this);
 
             var autoHost = Config.Bind("Dev", "AutoHost", false,

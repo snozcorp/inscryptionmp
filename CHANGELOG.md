@@ -28,6 +28,10 @@ one row each for the act, the deck and the rules. Press READY; it holds at 1/2 u
 other one does, and the match starts the moment it says 2/2. Your name comes from Steam, or
 you can set one in the config for a direct connection.
 
+**The score is across the top.** Your name and how far ahead you are, whose turn it is, and
+the same for your opponent — green when you're up, red when you're not. It replaces the
+status chip in the corner, which could only ever show one side of a thing that has two.
+
 **Chat, in the corner.** A folded tab at the bottom right that opens into a log and a box —
 type, press enter, done. It stays there through the lobby, the deck table and the match, and
 tells you when there is something unread. During a match the number keys **1-6** say a fixed
@@ -78,6 +82,15 @@ whole turn instead of skipping one card.
 and comes down until it fits where there isn't — below about 800 pixels of height it used to
 run off both ends, losing the title and the hotkey line. The version in the corner also stopped
 cutting its last character off, having called itself "v1.4." for several releases.
+
+**Act 2 stopped explaining itself mid-match.** The GBC game talks to you through its own
+text box, with a character who walks on to deliver the line — so a sigil you had not seen
+before would stop the match to describe itself. Acts 1 and 3 were already quiet; they use a
+different one.
+
+**Nothing blank on the GBC table.** A card with no pixel art draws as an empty rectangle with
+stats on it, and there is now a check right before a card is dealt as well as when the deck
+loads. Ant and Skink are the ones you would have noticed.
 
 **Smaller things.** A twenty-first card now says the deck is full instead of doing nothing.
 The GBC board took its colour from your deck's temple and got Nature every time once any card

@@ -62,10 +62,8 @@ rm -f .tmp/test-*.log
 
 run "act 1, in order"  --act 1 --draw order  --turns 4
 run "act 1, random"    --act 1 --draw random --turns 4
-run "act 2, in order"  --act 2 --draw order  --turns 4
-run "act 3, in order"  --act 3 --draw order  --turns 5 \
-    --deck-a "BatteryBot,Shieldbot,LeapBot,Steambot,Thickbot,SentryBot,BoltHound,GiftBot,RoboMice,Insectodrone" \
-    --deck-b "Shieldbot,BatteryBot,Steambot,LeapBot,SentryBot,Thickbot,GiftBot,BoltHound,Insectodrone,RoboMice"
+run "act 2, in order"  --act 2 --draw order  --turns 4 --deck "@pool"
+run "act 3, in order"  --act 3 --draw order  --turns 5 --deck "@pool"
 run "conceding by leaving" --act 1 --draw random --host-turns 2 --join-turns 10
 
 echo

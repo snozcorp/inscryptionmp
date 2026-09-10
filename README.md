@@ -30,7 +30,8 @@ over the network, against another person.
   order), damage to win, starting hand, draws a turn, deck size, sigils a card, side pile,
   who goes first, and starting bones. Default is always one click away.
 - **A lobby.** Both players by name with their own ready state; the match starts the moment
-  it reads 2/2.
+  it reads 2/2. In a match the top of the screen carries the score: both names, both leads,
+  and whose turn it is.
 - **Chat** in the corner of the screen, and fixed phrases on the number keys during a match.
 - **Deck builder** using the game's own 3D card table, paged, persisted to disk — one
   deck per act, each restricted to cards that act can actually draw and pay for. The deck

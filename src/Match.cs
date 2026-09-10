@@ -30,6 +30,15 @@ namespace InscryptionMP
                         continue;
                     }
 
+                    // The deck file is pruned when it loads, but this is the last gate
+                    // before a card is dealt - and a card this act cannot draw is a blank
+                    // rectangle on the table rather than an error anybody can act on.
+                    if (!DeckStore.CanUseInDeck(info, ActInfo.Current))
+                    {
+                        Trace.Warn($"[match] '{name}' can't be drawn in {ActInfo.Name(ActInfo.Current)} - leaving it out");
+                        continue;
+                    }
+
                     string[] sigils = DeckStore.SigilsOf(entry);
                     if (sigils.Length > 0) info = WithSigils(info, sigils);
 

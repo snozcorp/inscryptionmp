@@ -109,6 +109,12 @@ Learned bringing up the other acts. All verified against Assembly-CSharp, not gu
   reward. In a versus match it is two people playing with different piles for reasons
   neither of them can see.
 
+### Each act talks to you through a different box
+`TextDisplayer` is Acts 1 and 3. Act 2 has `GBC.TextBox`, with its own `ShowUntilInput` and
+an `EnterSpeaker` that walks a character on to deliver the line - so silencing the first one
+leaves the GBC table stopping a match to explain a sigil, speaker and all. Both need
+blocking, and the speaker separately from the message.
+
 ### The numbers a match is made of are constants, not settings
 Everything a house rule would want to change is compiled in rather than stored:
 

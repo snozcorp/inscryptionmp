@@ -369,13 +369,17 @@ namespace InscryptionMP
         /// Whether a card is legal in a deck for the selected act - it belongs to that act's
         /// table and can be drawn and paid for there.
         /// </summary>
-        internal static bool CanUseInDeck(CardInfo c)
+        internal static bool CanUseInDeck(CardInfo c) => CanUseInDeck(c, ActInfo.Selected);
+
+        internal static bool CanUseInDeck(CardInfo c, MatchAct act)
         {
             if (c == null) return false;
-            if (!ActInfo.AcceptsTemple(ActInfo.Selected, c.temple)) return false;
+            if (!ActInfo.AcceptsTemple(act, c.temple)) return false;
 
-            // Needs whichever portrait this act's renderer actually draws.
-            if (ActInfo.UsesPixelArt(ActInfo.Selected))
+            // Needs whichever portrait this act's renderer actually draws. Act 2 draws
+            // pixelPortrait and nothing else, so a card without one is a blank rectangle
+            // with stats on it - Ant and Skink are the ones you notice.
+            if (ActInfo.UsesPixelArt(act))
             {
                 if (c.pixelPortrait == null) return false;
             }
@@ -387,8 +391,8 @@ namespace InscryptionMP
             // Only exclude costs this act's table can't actually pay. Banning energy
             // outright was an Act 1 rule; Act 3 grants energy and every Tech card uses it,
             // so applying it everywhere emptied that act's pool entirely.
-            if (c.EnergyCost > 0 && !ActInfo.GrantsEnergy(ActInfo.Selected)) return false;
-            if (c.GemsCost != null && c.GemsCost.Count > 0 && !ActInfo.GrantsGems(ActInfo.Selected)) return false;
+            if (c.EnergyCost > 0 && !ActInfo.GrantsEnergy(act)) return false;
+            if (c.GemsCost != null && c.GemsCost.Count > 0 && !ActInfo.GrantsGems(act)) return false;
 
             return true;
         }

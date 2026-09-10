@@ -52,6 +52,7 @@ namespace InscryptionMP
         private GUIStyle _countLabel, _version;
         private GUIStyle _seat, _seatState, _seatReady;
         private GUIStyle _chatLine, _chatMine, _chatSystem, _chatHead;
+        private GUIStyle _scoreName, _scoreNum, _scoreTurn;
         private GUIStyle _arrow, _dialValue;
         private GUIStyle _vote, _voteBoth;
         private GUIStyle _chipState, _chipInfo;
@@ -166,6 +167,7 @@ namespace InscryptionMP
         private static readonly Color Gold      = new Color(0.84f, 0.64f, 0.28f, 1f);        // accent, active
         private static readonly Color GoldSoft  = new Color(0.84f, 0.64f, 0.28f, 0.28f);     // borders
         private static readonly Color Rust      = new Color(0.72f, 0.34f, 0.26f, 1f);        // trouble
+        private static readonly Color Moss      = new Color(0.45f, 0.74f, 0.36f, 1f);        // ahead
 
         /// <summary>A one-pixel outline. Cheaper to read than a thick slab of colour.</summary>
         private void Frame(Rect r, Color c, float t = 1f)
@@ -243,7 +245,8 @@ namespace InscryptionMP
                                             _busy, _close, _resultText, _chipState, _chipInfo,
                                             _pageLabel, _countLabel, _vote, _voteBoth, _version,
                                             _seat, _seatState, _seatReady, _chatLine, _chatMine,
-                                            _chatSystem, _chatHead, _arrow, _dialValue })
+                                            _chatSystem, _chatHead, _arrow, _dialValue,
+                                            _scoreName, _scoreNum, _scoreTurn })
             {
                 if (st == null) continue;
                 st.font = f;
@@ -350,6 +353,24 @@ namespace InscryptionMP
             };
             _seatReady = new GUIStyle(_seatState) { normal = { textColor = Gold } };
 
+            _scoreName = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 17,
+                wordWrap = false,
+                padding = new RectOffset(0, 0, 0, 0),
+                normal = { textColor = Bone },
+            };
+            _scoreNum = new GUIStyle(_scoreName)
+            {
+                fontSize = 22,
+                fontStyle = FontStyle.Bold,
+            };
+            _scoreTurn = new GUIStyle(_scoreName)
+            {
+                fontSize = 19,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+            };
             _chatHead = new GUIStyle(GUI.skin.label)
             {
                 fontSize = 13,
@@ -459,10 +480,21 @@ namespace InscryptionMP
 
             if (!_open)
             {
-                float chipScale = FitWidth(460f);
                 Matrix4x4 chipRestore = GUI.matrix;
-                GUI.matrix = Matrix4x4.Scale(new Vector3(chipScale, chipScale, 1f));
-                DrawChip();
+
+                if (VersusMode.InMatch)
+                {
+                    _barScale = FitWidth(620f);
+                    GUI.matrix = Matrix4x4.Scale(new Vector3(_barScale, _barScale, 1f));
+                    DrawScoreBar();
+                }
+                else
+                {
+                    float chipScale = FitWidth(460f);
+                    GUI.matrix = Matrix4x4.Scale(new Vector3(chipScale, chipScale, 1f));
+                    DrawChip();
+                }
+
                 GUI.matrix = chipRestore;
 
                 DrawChatWindow();
@@ -563,6 +595,73 @@ namespace InscryptionMP
             int toWin = life.DamageUntilPlayerWin;
             return lead + " on the scales - " + toWin + " to win";
         }
+
+        /// <summary>
+        /// The score, across the top: each player's name and how far ahead they are, green
+        /// or red, with whose turn it is between them. A chip in the corner could only ever
+        /// show one side of a thing that has two.
+        /// </summary>
+        private void DrawScoreBar()
+        {
+            var life = Singleton<LifeManager>.Instance;
+            int lead = life == null ? 0 : life.Balance;
+
+            string turn = VersusMode.Suspended ? "OPPONENT LEFT"
+                        : TurnOrder.IsMyTurn ? "YOUR TURN" : "THEIR TURN";
+
+            const float w = 560f, padX = 18f, padY = 12f, rowH = 28f, gap = 10f;
+
+            float vw = Screen.width / _barScale;
+            var box = new Rect((vw - w) * 0.5f, 14f, w, rowH + padY * 2f);
+
+            GUI.DrawTexture(box, _chipBg);
+            Frame(box, GoldSoft);
+
+            float col = (w - padX * 2f) / 3f;
+            float top = box.y + padY;
+
+            Side(new Rect(box.x + padX, top, col - gap, rowH), Player.LocalName, lead, false);
+            Side(new Rect(box.xMax - padX - col + gap, top, col - gap, rowH), Player.PeerName, -lead, true);
+
+            var turnStyle = new GUIStyle(_scoreTurn)
+            {
+                normal = { textColor = VersusMode.Suspended ? Rust
+                                     : TurnOrder.IsMyTurn ? Gold : BoneDim },
+            };
+            GUI.Label(new Rect(box.x + padX + col, top, col, rowH), turn, turnStyle);
+        }
+
+        /// <summary>One player's half: their name, and how far ahead they are.</summary>
+        private void Side(Rect r, string name, int lead, bool rightAligned)
+        {
+            Color tint = lead > 0 ? Moss : lead < 0 ? Rust : BoneDim;
+            string num = lead > 0 ? "+" + lead : lead.ToString();
+
+            var numStyle = new GUIStyle(_scoreNum)
+            {
+                alignment = rightAligned ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight,
+                normal = { textColor = tint },
+            };
+            var nameStyle = new GUIStyle(_scoreName)
+            {
+                alignment = rightAligned ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft,
+            };
+
+            const float numW = 46f;
+            if (rightAligned)
+            {
+                GUI.Label(new Rect(r.x, r.y, numW, r.height), num, numStyle);
+                GUI.Label(new Rect(r.x + numW + 10f, r.y, r.width - numW - 10f, r.height), name, nameStyle);
+            }
+            else
+            {
+                GUI.Label(new Rect(r.x, r.y, r.width - numW - 10f, r.height), name, nameStyle);
+                GUI.Label(new Rect(r.xMax - numW, r.y, numW, r.height), num, numStyle);
+            }
+        }
+
+        /// <summary>What the score bar was drawn at last pass.</summary>
+        private float _barScale = MaxScale;
 
         /// <summary>The always-on status marker.</summary>
         private void DrawChip()

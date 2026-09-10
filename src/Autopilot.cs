@@ -157,6 +157,8 @@ namespace InscryptionMP
 
             Report(true, $"match started on {ActInfo.Name(ActInfo.Current)} " +
                          $"with rules {MatchRules.Live.Encode()}");
+            Trace.Info($"[auto] at match start: game turn {Singleton<TurnManager>.Instance?.TurnNumber}, "
+                       + $"setup={Singleton<TurnManager>.Instance?.IsSetupPhase}");
             CheckRules();
 
             yield return PlayMatch(plugin);
@@ -364,6 +366,8 @@ namespace InscryptionMP
             List<CardInfo> pool = DeckStore.Pool;
             Trace.Info($"[auto] {ActInfo.Name(Act)} pool holds {pool.Count} cards");
 
+            PixelArtCheck.AuditPool();
+
             foreach (string name in ActInfo.AlwaysOffered(Act))
             {
                 bool present = pool.Exists(c => c != null && c.name == name);
@@ -377,15 +381,45 @@ namespace InscryptionMP
         {
             DeckStore.BackUpOnce();
 
+            // "@pool" means "whatever this act actually offers", so a test deck cannot go
+            // stale against the card pool the way a hand-written list of names does.
+            if (Deck.Length == 1 && Deck[0].Trim() == "@pool")
+            {
+                var fromPool = new List<string>();
+                foreach (CardInfo c in DeckStore.Pool)
+                {
+                    if (fromPool.Count >= 10) break;
+                    fromPool.Add(c.name);
+                }
+
+                DeckStore.Deck.Clear();
+                DeckStore.Deck.AddRange(fromPool);
+                Match.Reset();
+                DeckStore.Save();
+                Trace.Info($"[auto] deck taken from the {ActInfo.Name(Act)} pool: "
+                           + string.Join(", ", fromPool.ToArray()));
+                return;
+            }
+
             var kept = new List<string>();
             foreach (string raw in Deck)
             {
                 string name = raw.Trim();
                 if (name.Length == 0) continue;
 
-                if (!Cards.Exists(DeckStore.BaseName(name)))
+                CardInfo card = Cards.ByName(DeckStore.BaseName(name));
+                if (card == null)
                 {
                     Report(false, $"deck asks for '{name}', which is not a card");
+                    continue;
+                }
+
+                // The same gate the deck builder applies. Without it a scripted run can
+                // put a card on a table that cannot draw it, and then the blank card
+                // looks like a rendering bug rather than a bad test deck.
+                if (!DeckStore.CanUseInDeck(card, Act))
+                {
+                    Report(false, $"'{name}' is not usable in {ActInfo.Name(Act)}");
                     continue;
                 }
                 kept.Add(name);
@@ -439,17 +473,21 @@ namespace InscryptionMP
                 if (!VersusMode.InMatch) break;
 
                 taken++;
-                Trace.Info($"[auto] turn {taken}: hand is {HandNames()}, {Scales()}");
+                Trace.Info($"[auto] turn {taken} (game turn {Singleton<TurnManager>.Instance.TurnNumber}): "
+                           + $"hand is {HandNames()}, {Scales()}");
 
                 if (taken == 1)
                 {
-                    int held = Singleton<PlayerHand>.Instance.CardsInHand.Count;
-                    int want = MatchRules.Live.StartingHand;
-
-                    // Only the player who opens sees an untouched hand; the other one has
-                    // already taken a draw-phase card by the time they act.
-                    if (Net.IsHost ? !MatchRules.Live.GuestFirst : MatchRules.Live.GuestFirst)
+                    // Only on game turn 1 is the hand still the one that was dealt. On any
+                    // later turn a draw phase has been through it, which is why asking
+                    // "am I the player who opens" was the wrong question and failed at
+                    // random whenever a turn went by before this loop got its first look.
+                    if (Singleton<TurnManager>.Instance.TurnNumber == 1)
+                    {
+                        int held = Singleton<PlayerHand>.Instance.CardsInHand.Count;
+                        int want = MatchRules.Live.StartingHand;
                         Report(held == want, $"opening hand is {held}, rule says {want}");
+                    }
 
                     Chat.Say("turn 1 from " + (Net.IsHost ? "the host" : "the guest"));
                     Chat.Emote(0);

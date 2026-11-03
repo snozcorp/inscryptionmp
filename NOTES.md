@@ -160,7 +160,7 @@ Transport is plain TCP, newline-delimited text. It's turn-based: ordering matter
 latency does not. The protocol is human-readable so the log is the debugger.
 
 ## Wire protocol
-Protocol 5. Newline-delimited text, human-readable so the log is the debugger.
+Protocol 6. Newline-delimited text, human-readable so the log is the debugger.
 
 ```
 HELLO <proto> <modVersion>    greeting; both sides send it on connect
@@ -174,6 +174,8 @@ START <act>                   begin a match on act 1, 2 or 3
 PLAY <cardName> <slotIndex>   peer played a card into their player slot N
 SAC <slotIndex>               peer sacrificed the card in that slot
 BOARD <slot>|<slot>|...       authoritative snapshot of the sender's player slots
+STATE <hand> <bones> <sacs>   sender's hand size, bones, sacrifices this turn
+SCALE <balance>               sender's balance (their damage dealt minus taken)
 AIM <slot> <t1,t2,...>        where the sender aimed a Sniper card
 LATCH P|O <slotIndex>         which card a latcher latched onto
 END                           peer ended their turn
@@ -211,15 +213,53 @@ the host is the one that sends `START` when the two agree and both are ready, be
 both sent it the two messages would cross and each client would try to start a match it
 was already starting.
 
-**Older peers are not shut out.** The handshake carries the protocol version, so a client
-that speaks 4 writes protocol 2 messages to a peer that speaks 2 and goes without the
-extras. A peer that cannot vote falls back to the pre-4 rule — either player starts and
-both are pulled in — but *only* when their own greeting says so. An earlier version gave up
-on a silent peer after eight seconds, which meant one dropped packet quietly turned the
-start button back into one that drags them into a match they never agreed to; waiting
-forever is the safe failure, and the two-second re-announce is what makes waiting rare.
-Only protocol 1 is refused, and for a real reason: it predates `START <act>`, so one side
-would load Act 1's cabin while the other loaded Act 3's board.
+**Mod 2.0 refuses everything older than protocol 6.** Through 1.5 an older peer was
+negotiated down and played without the extras. 2.0 changes what each client *simulates*
+rather than only what it says (see below), so a 1.x client on the other end would bring
+back every desync 2.0 fixes. The handshake still carries both versions, and the refusal
+names them: "they are on mod 1.5.0 and you are on 2.0.0".
+
+### Protocol 6: the scales stay together
+
+Both clients run every combat on their own copy of the board, and for 1.x the scales
+drifted apart in longer matches, most often with "damage to win" above 5. The cause was a
+fifth hard-coded 5 that 1.5 missed: `DoCombatPhase` caps the attacker's damage at
+`Balance + damage - 5`, and only on the attacker's own screen, since only there
+`playerIsAttacker` is true. With a post of 10, an attacker sitting on +3 who hit for 4
+moved their own scale by 2 and the defender's by 4. `CombatExcessDamage` swaps that one
+`ldc.i4.5; sub` for the match's post. It warns and leaves the method alone if the IL
+doesn't hold exactly one.
+
+`SCALE` is the backstop for whatever else the two simulations disagree on. Each side
+sends its balance when it rings the bell, after `STATE` and `BOARD` and before `END`. At that moment
+both clients have run exactly the same combats: the sender's last combat was the
+receiver's attack, which the sender defended with both boards freshly synced. So the
+receiver takes `-balance` as the truth and moves its scale there with real weights
+(`ShowDamageSequence`), so Act 1's physical scale leans to match. Every correction is
+logged as `[scale]`, and the match summary counts them.
+
+Also in protocol 6, all simulated on the receiving side:
+
+- **Owner-only sigils go quiet on the opponent's copy.** Bees Within, Rabbit Hole,
+  Fecundity, Unkillable, Steel Trap's pelt, and every sigil that pays "the player" (draws,
+  bones, energy, items) used to pay the *viewer*: on your screen their Bees Within put a
+  bee in your hand. `OwnerOnly` silences those on opponent cards, because the owner's
+  client already does it for real.
+- **Sacrifices are replayed with `Sacrifice()`**, not `Die()`, so Many Lives survives and
+  sacrifice triggers fire.
+- **Cards that count resources count the right player's.** Hand Tentacle, Lammergeier and
+  the sacrifice counter read the peer's numbers from `STATE` when they're the opponent's.
+  Between `STATE` lines, bones the peer earns from deaths on our screen are tracked
+  locally. Bell Tentacle counts the chimes beside it on its
+  own side.
+- **Daus answers only its own bells**, struck from across the board.
+
+`STATE` goes out just *before* `BOARD`, and the receiver waits a frame after it. Variable
+stats refresh once a frame, and `BOARD` corrects any stat that differs, so a stale
+counting card used to get the difference baked in as a permanent correction: the
+opponent's Hand Tentacle wandered by one each turn. Before the first `STATE` arrives,
+opponent cards fall back
+to the game's own (our) numbers.
 
 ## Status
 - [x] Environment recon, decompile, battle state machine mapped
@@ -273,6 +313,24 @@ are now fixed rather than worked around:
 - Both game windows open at the same position, so screenshotting one by its window rectangle
   photographs whichever is in front. Foreground it first.
 
+**It fights.** Until 2.0 the autopilot only played cards with no blood cost, which in the
+Act 1 test deck meant 0-attack Squirrels and Rabbits. Every match ended level at 0, so
+nothing ever tested combat. It now sacrifices its weakest cards for the strongest card it
+can pay for, the same way the game's own sacrifice step does (count it, then `Sacrifice()`).
+Every run reports two checks: `combat reached the scales`, and `the two scales never
+disagreed`, which fails on any `SCALE` correction. The suite includes a run with the post
+at 10, where 1.x drifted.
+
+`--host-pause N` makes the host play turn N and then wait for a real click on END TURN,
+so the button gets tested by a person. While a client waits, opening its pause menu stops
+its clock (`Time.timeScale = 0`). Its opponent then hangs on the next combat until the menu
+is closed. That is vanilla behaviour, not a mod bug, but it looks exactly like one.
+
+**The second install is a plain copy of the first** (`/c/Games/InscryptionClient2`).
+A copy inherits the BepInEx config, so if the main install has `[Dev] AutoHost = true`,
+turn it off in the copy. Otherwise both clients host on 27333, the joiner's autopilot is
+ignored as "already connecting", and every run fails with `no connection`.
+
 `INSCRYPTIONMP_AUTOPILOT_HOLD` stops before the match and parks the client on the lobby
 panel or the deck table instead, which is how the interface gets looked at rather than
 described - there is no reading a layout out of a log.
@@ -283,11 +341,11 @@ Steam won't happily run two instances, so `tools/peer.py` speaks our protocol di
 1. Launch the game (BepInEx is installed; it loads automatically).
 2. **F7 → Direct connect → Host**, before anything else. `OpponentInjector` only swaps in
    `NetworkOpponent` if `Net.Connected` is true at `SpawnOpponent` time.
-3. `python tools/peer.py` — it greets as a protocol 5 client, mirrors whichever act you
+3. `python tools/peer.py` — it greets as a protocol 6 client, mirrors whichever act you
    vote for, and presses start once you have, so the whole negotiation runs from one
    machine. `--act 2` pins it to Act 2 to see a 1/2 disagreement, `--wait` makes it never
-   press start, `--proto 4` makes it a build that cannot be told the match rules, and
-   `--legacy` makes it greet as protocol 3 to exercise the older fallback. It
+   press start, and `--proto 5` or `--legacy` make it an older build, to check that 2.0
+   refuses it with a message that names both versions. It
    can be started before the game and left running across restarts; it waits for the
    listener and goes back to waiting when the game closes.
 4. Press START MATCH. The panel should hold at 1/2 for half a second, then load.

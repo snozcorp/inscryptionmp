@@ -372,11 +372,10 @@ namespace InscryptionMP
                 if (proto < Protocol.MinCompatible)
                 {
                     HandshakeError =
-                        "their build is too old - you have mod " + Plugin.Version +
-                        " (protocol " + Protocol.Version + "), they have " + modVersion +
-                        " (protocol " + proto + ")";
-                    Trace.Error("[net] " + HandshakeError);
-                    Notice.Bad("Opponent's mod is too old to play against.");
+                        "they are on mod " + modVersion + " and you are on " + Plugin.Version +
+                        " - both players need " + Plugin.Version + " or newer";
+                    Trace.Error($"[net] {HandshakeError} (protocol {proto}, ours {Protocol.Version})");
+                    Notice.Bad("Opponent needs to update the mod to " + Plugin.Version + ".");
                     PeerVerified = false;
                 }
                 else

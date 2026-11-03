@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Reflection;
+using System.Reflection.Emit;
 using DiskCardGame;
 using HarmonyLib;
 using UnityEngine;
@@ -74,6 +77,43 @@ namespace InscryptionMP
 
             __result = playerWon || Balance <= -Goal || conceded || __instance.PlayerSurrendered;
             return false;
+        }
+
+        /// <summary>The post DoCombatPhase caps the attacker's damage at, in place of its 5.</summary>
+        public static int CombatPost() => Ours ? Goal : LifeManager.GOAL_BALANCE;
+    }
+
+    /// <summary>
+    /// The fifth hardcoded 5. DoCombatPhase cuts the attacker's damage at "Balance + dmg - 5"
+    /// - only on the attacker's own screen - so with any other post the two scales drifted
+    /// apart every time someone got within reach of 5. Swaps that literal for the real post.
+    /// </summary>
+    [HarmonyPatch]
+    internal static class CombatExcessDamage
+    {
+        private static MethodBase TargetMethod() =>
+            AccessTools.EnumeratorMoveNext(AccessTools.Method(typeof(CombatPhaseManager),
+                                                              nameof(CombatPhaseManager.DoCombatPhase)));
+
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var code = new List<CodeInstruction>(instructions);
+            MethodInfo post = AccessTools.Method(typeof(WinCondition), nameof(WinCondition.CombatPost));
+
+            // State-machine bookkeeping also loads 5, but never straight into a subtraction.
+            var hits = new List<int>();
+            for (int i = 0; i < code.Count - 1; i++)
+                if (code[i].opcode == OpCodes.Ldc_I4_5 && code[i + 1].opcode == OpCodes.Sub) hits.Add(i);
+
+            if (hits.Count != 1)
+            {
+                Plugin.Log.LogWarning($"[win] expected one '- 5' in DoCombatPhase, found {hits.Count} - left alone");
+                return code;
+            }
+
+            code[hits[0]] = new CodeInstruction(OpCodes.Call, post).MoveLabelsFrom(code[hits[0]]);
+            Plugin.Log.LogInfo("[win] combat damage cap now follows the match's post");
+            return code;
         }
     }
 }

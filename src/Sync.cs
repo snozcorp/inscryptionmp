@@ -105,6 +105,10 @@ namespace InscryptionMP
             string cardName = card.Info != null ? card.Info.name : null;
             if (string.IsNullOrEmpty(cardName)) return;
 
+            // Still wearing its disguise here; it reveals itself just after.
+            if (card.GetComponent<Shapeshifter>() != null) cardName = "Ijiraq";
+
+            MatchSummary.NotePlay(mine: true);
             Net.Send(Protocol.Play(cardName, slot.Index));
         }
 
@@ -114,10 +118,20 @@ namespace InscryptionMP
         {
             if (!Net.Connected || !VersusMode.InMatch) return;
 
+            // Bell and End Turn button both in the frame before combat starts: one END only.
+            if (!TurnOrder.IsMyTurn) return;
+
             // Send the authoritative state of our side before passing. Replaying
             // individual plays can't express sacrifices or deaths, so the peer's copy of
             // our board drifts; this reconciles it every turn.
+            // STATE first: the peer's copies of our counting cards must be current before
+            // BOARD compares their stats, or the difference gets baked in as a correction.
+            Net.Send(PeerState.OurLine());
             Net.Send(Protocol.Board(SnapshotPlayerSlots()));
+
+            // Same reasoning for the scales: both sides have now run the same combats.
+            var life = Singleton<LifeManager>.Instance;
+            if (life != null) Net.Send(Protocol.Scale(life.Balance));
 
             TurnOrder.PassedToPeer();
             Net.Send(Protocol.EndTurn);

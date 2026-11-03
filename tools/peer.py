@@ -16,8 +16,8 @@ match can be brought up end to end from one machine.
     python tools/peer.py                 # agree with everything, start when they do
     python tools/peer.py --act 2         # insist on Act 2, to see a disagreement
     python tools/peer.py --wait          # never press start, to see 1/2 hold
-    python tools/peer.py --legacy        # greet as protocol 3, to see the fallback
-    python tools/peer.py --proto 4       # greet as protocol 4: no match rules
+    python tools/peer.py --legacy        # greet as protocol 3: 2.0 refuses it
+    python tools/peer.py --proto 5       # greet as mod 1.5: refused, see the message
     python tools/peer.py --manual        # feed lines from .tmp/outbox.txt by hand
 """
 import os
@@ -32,8 +32,8 @@ INBOX = os.path.join(".tmp", "inbox.log")
 
 AUTO_CARDS = ["Stoat", "Bullfrog", "Wolf", "Adder"]
 
-PROTOCOL = 5
-MOD_VERSION = "1.5.0"
+PROTOCOL = 6
+MOD_VERSION = "2.0.0"
 
 
 def log_in(line):
@@ -118,6 +118,9 @@ def reader(sock, writer, auto, opts):
             board = ["-"] * 4
             board[slot] = f"{card}:2/3:Sniper"
             send(writer, "BOARD " + "|".join(board), "  (auto)")
+            # Hand, bones, sacrifices. No SCALE: we don't simulate combat, so any
+            # balance we claimed would drag the real client's scales somewhere wrong.
+            send(writer, "STATE 3 0 0", "  (auto)")
             time.sleep(0.2)
 
             # Our cards claim Sniper, so tell the peer where we aimed it.

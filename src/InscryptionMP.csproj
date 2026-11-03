@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
     <AssemblyName>InscryptionMP</AssemblyName>
-    <Version>1.5.0</Version>
+    <Version>2.0.0</Version>
     <LangVersion>latest</LangVersion>
     <NoWarn>$(NoWarn);CS0626;MSB3277</NoWarn>
     <GameDir>C:\Steam\steamapps\common\Inscryption</GameDir>
@@ -14,7 +14,7 @@
   <ItemGroup>
     <AssemblyMetadata Include="AI_Assisted_Creation" Value="This assembly was partially or fully created with the assistance of Generative AI (e.g., Code Suggestions, Refactoring, Documentation Generation)." />
     <AssemblyMetadata Include="AI_Model_Vendor" Value="Anthropic" />
-    <AssemblyMetadata Include="AI_Model" Value="Claude Opus 5" />
+    <AssemblyMetadata Include="AI_Model" Value="Claude Opus 5, Claude Opus 5.5" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,6 +31,7 @@
     <Reference Include="Sirenix.Utilities"><HintPath>$(ManagedDir)\Sirenix.Utilities.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.InputLegacyModule"><HintPath>$(ManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.IMGUIModule"><HintPath>$(ManagedDir)\UnityEngine.IMGUIModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ImageConversionModule"><HintPath>$(ManagedDir)\UnityEngine.ImageConversionModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(ManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 </Project>

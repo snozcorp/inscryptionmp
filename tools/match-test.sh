@@ -24,6 +24,7 @@ LEAVE=""
 TURNS=4
 HOST_TURNS=""
 JOIN_TURNS=""
+HOST_PAUSE=""
 BUILD=1
 TIMEOUT=420
 # Cheap Act 1 creatures, in an order that is obvious to read back out of the log.
@@ -39,6 +40,7 @@ while [ $# -gt 0 ]; do
     --turns)    TURNS="$2"; shift 2 ;;
     --host-turns) HOST_TURNS="$2"; shift 2 ;;
     --join-turns) JOIN_TURNS="$2"; shift 2 ;;
+    --host-pause) HOST_PAUSE="$2"; shift 2 ;;   # host leaves that turn for END TURN
     --timeout)  TIMEOUT="$2"; shift 2 ;;
     --deck)     DECK_A="$2"; DECK_B="$2"; shift 2 ;;
     --deck-a)   DECK_A="$2"; shift 2 ;;
@@ -76,13 +78,16 @@ for d in "$A_DIR" "$B_DIR"; do
   [ -d "$d" ] || { echo "missing install: $d"; exit 1; }
   # The campaign save is never written during a match, but a copy costs nothing.
   [ -f "$d/SaveFile.gwsave" ] && cp -n "$d/SaveFile.gwsave" "$d/SaveFile.gwsave.autotest-backup" 2>/dev/null
+  # The test host saves the rules it adopts; put the player's own back afterwards.
+  cfg="$d/BepInEx/config/dev.snoz.inscryptionmp.cfg"
+  [ -f "$cfg" ] && cp -f "$cfg" "$cfg.pre-autotest"
 done
 
 kill_clients
 rm -f "$A_LOG" "$B_LOG"
 
-launch() {   # launch <dir> <mode> <deck> <turns>
-  local dir="$1" mode="$2" deck="$3" turns="$4"
+launch() {   # launch <dir> <mode> <deck> <turns> [pause turn]
+  local dir="$1" mode="$2" deck="$3" turns="$4" pause="${5:-}"
   INSCRYPTIONMP_AUTOPILOT="$mode" \
   INSCRYPTIONMP_AUTOPILOT_ACT="$ACT" \
   INSCRYPTIONMP_AUTOPILOT_DRAW="$DRAW" \
@@ -91,13 +96,14 @@ launch() {   # launch <dir> <mode> <deck> <turns>
   INSCRYPTIONMP_AUTOPILOT_LEAVE="$LEAVE" \
   INSCRYPTIONMP_AUTOPILOT_DECK="$deck" \
   INSCRYPTIONMP_AUTOPILOT_TURNS="$turns" \
+  INSCRYPTIONMP_AUTOPILOT_PAUSE_TURN="$pause" \
   INSCRYPTIONMP_AUTOPILOT_QUIT=1 \
   "$dir/Inscryption.exe" -screen-fullscreen 0 -screen-width 960 -screen-height 540 \
     >/dev/null 2>&1 &
 }
 
 echo "==> launching host"
-launch "$A_DIR" host "$DECK_A" "$HOST_TURNS"
+launch "$A_DIR" host "$DECK_A" "$HOST_TURNS" "$HOST_PAUSE"
 sleep 6
 echo "==> launching joiner"
 launch "$B_DIR" join "$DECK_B" "$JOIN_TURNS"
@@ -127,6 +133,8 @@ for d in "$A_DIR" "$B_DIR"; do
     mv -f "$saved" "${saved%.pre-autopilot}"
     echo "==> restored $(basename "${saved%.pre-autopilot}") in $d"
   done
+  cfg="$d/BepInEx/config/dev.snoz.inscryptionmp.cfg"
+  [ -f "$cfg.pre-autotest" ] && mv -f "$cfg.pre-autotest" "$cfg"
 done
 
 verdict=0

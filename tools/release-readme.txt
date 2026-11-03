@@ -15,29 +15,28 @@ INSTALL
      the slot - or press F7 at any time.
 
 VERSIONS
-  Both players should be on the same version. 1.5.x still plays against
-  1.1.x-1.4.x, dropping back to what the older client understands: no match
-  rules against anything before 1.5, no lobby vote before 1.4, and no stat
-  corrections, synced sigils or Sniper aiming before 1.3. 1.0.x is refused
-  outright, and says so at the handshake rather than failing halfway into a
-  match.
+  Both players need 2.0 or newer. 2.0 changed how each client runs combat,
+  not just what they say to each other, so it can't play against 1.x - an
+  older copy is refused at the handshake, with a message naming both
+  versions, before anything loads.
 
 PLAYING
   One player clicks Host Lobby, the other clicks Find Games and picks it.
   Both players pick an act - the tally under the buttons shows who wants
   what, and the match can only be the one you both chose. Both players then
-  click START MATCH; the first press holds at 1/2 until the second lands.
+  press READY; the match starts when it reads 2/2.
+
+  To end your turn, ring the bell, or press END TURN under the score at the
+  top of the screen. The score reads like +3 / 10: three up, ten to win.
 
   F7  menu        F8  ready up        F12  abort out of anything
 
 MATCH RULES
-  Under the act buttons, the host sets how cards are dealt:
-
-    Random    the way the game normally deals - a card at random.
-    In order  off the top of your deck, in the order you built it.
-
-  Both players play under the same rule, and the one who did not choose it
-  can see which it is before pressing start.
+  The host sets nine of them on their own screen: card draw (random, or in
+  the order you built your deck), damage to win, starting hand, draws a
+  turn, deck size, sigils a card, side pile, who goes first and starting
+  bones. Both players play under the same set, and the other player can
+  read them before readying up.
 
 DECK
   F7 -> EDIT DECK opens the game's own card table. Click a card to add it.
@@ -46,6 +45,9 @@ DECK
   sits in the deck, with Move Earlier and Move Later - which is the order it
   is dealt in under the In order rule. 6-20 cards, each player brings their
   own.
+
+  Copy deck code and Paste deck code, on the same screen, pass a deck around
+  as one line of text.
 
   Act 1 also keeps ten squirrels in a second pile beside your deck, and
   Act 3 ten empty vessels; you can draw from either one on any turn, the
@@ -69,3 +71,6 @@ ITEMS
   the same empty slots until they can be synced properly.
 
 Your campaign save is never written to during a match.
+
+Something wrong? F7 -> Open log folder, and send mp-trace.log and
+LogOutput.log from both players.

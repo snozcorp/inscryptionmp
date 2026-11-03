@@ -56,6 +56,9 @@ namespace InscryptionMP
         public static string Leave { get; private set; }
         public static string[] Deck { get; private set; }
         public static int MaxTurns { get; private set; } = 8;
+
+        /// <summary>The turn it plays but doesn't end, so the END TURN button gets pressed. 0 = never.</summary>
+        public static int PauseTurn { get; private set; }
         public static bool QuitWhenDone { get; private set; }
 
         /// <summary>
@@ -91,6 +94,7 @@ namespace InscryptionMP
             if (int.TryParse(Env("INSCRYPTIONMP_AUTOPILOT_PORT") ?? "", out n) && n > 0 && n < 65536) Port = n;
             if (int.TryParse(Env("INSCRYPTIONMP_AUTOPILOT_ACT") ?? "", out n) && n >= 1 && n <= 3) Act = (MatchAct)n;
             if (int.TryParse(Env("INSCRYPTIONMP_AUTOPILOT_TURNS") ?? "", out n) && n > 0) MaxTurns = n;
+            if (int.TryParse(Env("INSCRYPTIONMP_AUTOPILOT_PAUSE_TURN") ?? "", out n) && n > 0) PauseTurn = n;
 
             Draw = Env("INSCRYPTIONMP_AUTOPILOT_DRAW");
             Hold = Env("INSCRYPTIONMP_AUTOPILOT_HOLD");
@@ -511,18 +515,22 @@ namespace InscryptionMP
         private static IEnumerator PlayMatch(MonoBehaviour plugin)
         {
             int taken = 0;
+            _scalesMoved = false;
 
             while (VersusMode.InMatch && taken < MaxTurns)
             {
+                WatchScales();
                 var tm = Singleton<TurnManager>.Instance;
                 var hand = Singleton<PlayerHand>.Instance;
 
                 if (tm == null || hand == null || !tm.IsPlayerMainPhase || hand.PlayingLocked
                     || !TurnOrder.IsMyTurn)
                 {
+                    ReportStall(tm, hand);
                     yield return new WaitForSeconds(0.25f);
                     continue;
                 }
+                _stallSince = -1f;
 
                 yield return new WaitForSeconds(0.6f);
                 if (!VersusMode.InMatch) break;
@@ -551,6 +559,17 @@ namespace InscryptionMP
                 yield return PlayWhatWeCan();
 
                 if (!VersusMode.InMatch) break;
+
+                // Left for a person to end through the END TURN button, to see it work.
+                if (taken == PauseTurn)
+                {
+                    Trace.Info($"[auto] turn {taken}: parked - waiting for END TURN to be pressed");
+                    yield return WaitUntil(() => !TurnOrder.IsMyTurn || !VersusMode.InMatch, 600f,
+                                           "someone to press END TURN");
+                    Report(!TurnOrder.IsMyTurn || !VersusMode.InMatch, "END TURN passed the turn");
+                    if (!TurnOrder.IsMyTurn) continue;
+                }
+
                 Trace.Info($"[auto] turn {taken}: ringing the bell");
                 Singleton<TurnManager>.Instance.OnCombatBellRang();
 
@@ -561,6 +580,43 @@ namespace InscryptionMP
 
             Trace.Info($"[auto] played {taken} turn(s); match {(VersusMode.InMatch ? "still running" : "over")}" +
                        (VersusMode.LastResult == null ? "" : " - " + VersusMode.LastResult));
+
+            // The point of 2.0: both screens score every combat the same way.
+            // A match the other side left early may end before anyone is hit; that is not a pass.
+            if (_scalesMoved) Report(true, "combat reached the scales");
+            else if (VersusMode.LastResult != null) Trace.Info("[auto] match ended before any damage - combat check skipped");
+            else Report(false, "combat reached the scales");
+            Report(ScaleSync.Corrections == 0,
+                   $"the two scales never disagreed ({ScaleSync.Corrections} correction(s))");
+        }
+
+        private static bool _scalesMoved;
+        private static float _stallSince = -1f, _stallChirp;
+
+        /// <summary>Our turn by the wire, but the game never gets to the main phase: say where it is.</summary>
+        private static void ReportStall(TurnManager tm, PlayerHand hand)
+        {
+            if (!TurnOrder.IsMyTurn || tm == null) { _stallSince = -1f; return; }
+
+            float now = Time.realtimeSinceStartup;
+            if (_stallSince < 0f) { _stallSince = now; _stallChirp = now + 15f; return; }
+            if (now < _stallChirp) return;
+            _stallChirp = now + 10f;
+
+            var triggers = Singleton<GlobalTriggerHandler>.Instance;
+            var views = Singleton<ViewManager>.Instance;
+            Trace.Warn($"[auto] stalled {now - _stallSince:0}s on our turn: game turn {tm.TurnNumber}, " +
+                       $"playerTurn={tm.IsPlayerTurn}, phase={tm.PlayerPhase}, setup={tm.IsSetupPhase}, " +
+                       $"ending={tm.GameEnding}, upkeep={tm.IsPlayerUpkeep}, " +
+                       $"stack={(triggers != null ? triggers.StackSize : -1)}, " +
+                       $"handLocked={(hand != null && hand.PlayingLocked)}, " +
+                       $"view={(views != null ? views.CurrentView + "/" + views.Controller.LockState : "-")}");
+        }
+
+        private static void WatchScales()
+        {
+            var life = Singleton<LifeManager>.Instance;
+            if (life != null && life.Balance != 0) _scalesMoved = true;
         }
 
         /// <summary>
@@ -599,23 +655,39 @@ namespace InscryptionMP
             var res = Singleton<ResourcesManager>.Instance;
             if (board == null || hand == null) yield break;
 
-            foreach (CardSlot slot in board.PlayerSlotsCopy)
+            // A few rounds: play the strongest card we can pay for, then look again.
+            for (int round = 0; round < 6; round++)
             {
-                if (slot == null || slot.Card != null) continue;
-
                 PlayableCard pick = null;
+                List<PlayableCard> fodder = null;
+
                 foreach (PlayableCard card in new List<PlayableCard>(hand.CardsInHand))
                 {
                     if (card == null || card.Info == null) continue;
-                    if (card.Info.BloodCost > 0) continue;
                     if (card.Info.GemsCost != null && card.Info.GemsCost.Count > 0) continue;
                     if (res != null && card.Info.BonesCost > res.PlayerBones) continue;
                     if (res != null && card.EnergyCost > res.PlayerEnergy) continue;
-                    pick = card;
-                    break;
+
+                    List<PlayableCard> pay = FodderFor(board, card);
+                    if (pay == null) continue;
+                    if (pick == null || Worth(card) > Worth(pick)) { pick = card; fodder = pay; }
                 }
 
                 if (pick == null) break;
+
+                // The same steps the game's own sacrifice takes: count it, then sacrifice.
+                foreach (PlayableCard victim in fodder)
+                {
+                    Trace.Info($"[auto] sacrificing {victim.Info.name} in slot {victim.Slot.Index} for {pick.Info.name}");
+                    board.SacrificesMadeThisTurn++;
+                    yield return victim.Sacrifice();
+                    yield return new WaitForSeconds(0.2f);
+                }
+
+                CardSlot slot = null;
+                foreach (CardSlot s in board.PlayerSlotsCopy)
+                    if (s != null && s.Card == null) { slot = s; break; }
+                if (slot == null) break;   // Many Lives kept its seat
 
                 if (res != null && pick.Info.BonesCost > 0) yield return res.SpendBones(pick.Info.BonesCost);
                 if (res != null && pick.EnergyCost > 0) yield return res.SpendEnergy(pick.EnergyCost);
@@ -624,6 +696,34 @@ namespace InscryptionMP
                 yield return hand.PlayCardOnSlot(pick, slot);
                 yield return new WaitForSeconds(0.35f);
             }
+        }
+
+        private static int Worth(PlayableCard card) => card.Attack * 3 + card.Health;
+
+        /// <summary>
+        /// The weakest cards on our side that pay this card's blood, or null if we can't.
+        /// Never trades down. Even trades are allowed, so a Cat gets onto the board.
+        /// </summary>
+        private static List<PlayableCard> FodderFor(BoardManager board, PlayableCard card)
+        {
+            var mine = new List<PlayableCard>();
+            bool freeSlot = false;
+            foreach (CardSlot s in board.PlayerSlotsCopy)
+            {
+                if (s == null) continue;
+                if (s.Card == null) freeSlot = true;
+                else if (!s.Card.Dead) mine.Add(s.Card);
+            }
+
+            int blood = card.Info.BloodCost;
+            if (blood == 0) return freeSlot ? new List<PlayableCard>() : null;
+            if (mine.Count < blood) return null;
+
+            mine.Sort((a, b) => Worth(a).CompareTo(Worth(b)));
+            List<PlayableCard> pay = mine.GetRange(0, blood);
+            int given = 0;
+            foreach (PlayableCard p in pay) given += Worth(p);
+            return given <= Worth(card) ? pay : null;
         }
     }
 

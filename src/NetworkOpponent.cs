@@ -18,6 +18,7 @@ namespace InscryptionMP
         public override IEnumerator QueueNewCards(bool doTween = true, bool changeView = true)
         {
             Trace.Info("[opp] waiting for peer's turn...");
+            PeerState.TheirTurnBegins();
 
             // OpponentTurn locks the view because a vanilla opponent takes a second or two.
             // Ours can block indefinitely on the network, so leave the player free to look
@@ -53,6 +54,20 @@ namespace InscryptionMP
                     if (Protocol.TryParseBoard(msg, out string[] slotNames))
                     {
                         yield return ReconcileBoard(slotNames);
+                        continue;
+                    }
+
+                    if (Protocol.TryParseState(msg, out int theirHand, out int theirBones, out int theirSacs))
+                    {
+                        PeerState.Note(theirHand, theirBones, theirSacs);
+                        // Variable stats refresh once a frame; BOARD must see the new ones.
+                        yield return null;
+                        continue;
+                    }
+
+                    if (Protocol.TryParseScale(msg, out int theirBalance))
+                    {
+                        yield return ScaleSync.Reconcile(theirBalance);
                         continue;
                     }
 
@@ -108,6 +123,7 @@ namespace InscryptionMP
             }
 
             Trace.Info($"[opp] placing peer card '{cardName}' in opponent slot {slotIndex}");
+            MatchSummary.NotePlay(mine: false);
             yield return board.CreateCardInSlot(info, slot);
             yield return new WaitForSeconds(0.15f);
         }
@@ -234,8 +250,10 @@ namespace InscryptionMP
                 yield break;
             }
 
+            // Sacrifice, not Die: Many Lives survives it, and the Cat counts it.
             Trace.Info($"[opp] peer sacrificed slot {slotIndex}");
-            yield return card.Die(wasSacrifice: true);
+            PeerState.NoteSacrifice();
+            yield return card.Sacrifice();
         }
 
         private static IEnumerator RemoveCardAnimated(CardSlot slot)

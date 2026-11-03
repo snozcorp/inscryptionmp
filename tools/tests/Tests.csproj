@@ -15,6 +15,7 @@
     <Compile Include="../../src/Rules.cs" />
     <Compile Include="../../src/RuleBook.cs" />
     <Compile Include="../../src/Protocol.cs" />
+    <Compile Include="../../src/DeckCode.cs" />
     <Compile Include="Shims.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>

@@ -324,6 +324,38 @@ namespace InscryptionMP
             return Deck.Count(c => BaseName(c) == cardName);
         }
 
+        /// <summary>
+        /// Replaces the selected act's deck with a pasted one. Cards this act can't use are
+        /// left out, and the list is cut at the deck limit. Returns how many were dropped.
+        /// </summary>
+        public static int ReplaceWith(IList<string> entries)
+        {
+            var kept = new List<string>();
+            foreach (string entry in entries)
+            {
+                CardInfo info = Cards.ByName(BaseName(entry));
+                if (info != null && CanUseInDeck(info) && kept.Count < MaxCards) kept.Add(entry);
+            }
+
+            try
+            {
+                if (File.Exists(Path)) File.Copy(Path, Path + ".before-import", overwrite: true);
+            }
+            catch (Exception e)
+            {
+                Trace.Warn($"[deck] could not back up the deck before importing: {e.Message}");
+            }
+
+            EnsureAct();   // otherwise the next read drops this as another act's deck
+            _deck = kept;
+            Match.Reset();
+            Save();
+
+            int dropped = entries.Count - kept.Count;
+            Trace.Info($"[deck] imported {kept.Count} card(s) into {ActInfo.Name(ActInfo.Selected)}, left out {dropped}");
+            return dropped;
+        }
+
         public static void ResetToStarter()
         {
             _deck = StarterFor(ActInfo.Selected);

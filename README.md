@@ -41,7 +41,9 @@ over the network, against another person.
   reading a list, and only sigils the act can actually draw are offered.
 - **A multiplayer card on the title screen** — drag it into the slot to open the menu,
   alongside New Game and the rest.
-- **Clean match end** on both clients, back to the main menu with the result.
+- **Clean match end** on both clients, back to the main menu with the result and a short
+  summary: rounds, time, the final scales and how many cards each side played.
+- **Deck codes.** Copy your deck as one line of text, paste a friend's in.
 
 ## Install
 
@@ -55,25 +57,11 @@ over the network, against another person.
    ```
 3. Launch the game and press **F7**.
 
-**Version compatibility.** The handshake carries a protocol version, and a newer client
-speaks an older one's dialect rather than refusing it:
-
-| Your build | Plays against |
-|---|---|
-| 1.5.x | 1.5.x, and 1.1.x–1.4.x without the newer extras |
-| 1.4.x | 1.4.x–1.5.x, and 1.1.x–1.3.x without the newer extras |
-| 1.3.x | 1.3.x–1.5.x, and 1.1.x–1.2.x without the newer extras |
-| 1.1.x–1.2.x | each other, and 1.3.x–1.5.x |
-| 1.0.x | nothing newer |
-
-Against a pre-1.5 peer there are no match rules — they cannot be told what the rules are, so
-the match is played under the defaults whatever the host picked, and the panel says so.
-Against a pre-1.4 peer there is also no lobby vote, so the panel falls back to the older rule
-where either player starts and both are pulled in. Against a pre-1.3 peer you additionally
-lose stat corrections, synced sigils and Sniper aiming; the match works, there is just
-information their client never sends. 1.0.x is refused outright because it predates act
-negotiation, so the two clients would load different scenes. Mismatches are reported at the
-handshake, not halfway into a match.
+**Version compatibility.** Both players need **2.0 or newer**. 2.0 changed how each client
+runs combat, not just what the two say to each other, so it can't sit down with 1.x: the
+scales, owner-only sigils and resource-counting cards would all go back out of step. An older
+peer is turned away at the handshake with a message naming both versions, before anything
+loads. Within 1.x the old rules still hold: 1.1–1.5 play each other, newest features off.
 
 ## Playing
 
@@ -87,7 +75,8 @@ handshake, not halfway into a match.
    takes both players out of ready, so nobody starts a match under rules they didn't see.
 4. Both players press **READY**. The first press commits you and says so — `1/2` — and the
    match starts once the second one lands. Pressing again takes it back.
-5. Whoever the rules say takes the first turn. Ring the bell to pass.
+5. Whoever the rules say takes the first turn. Ring the bell to pass, or press **END TURN**
+   under the score at the top of the screen.
 
 **F7** menu · **F8** ready up · **F12** abort out of anything · **1-6** say something in a
 match · chat lives in the bottom right corner
@@ -100,6 +89,12 @@ the bottom shows where it sits in the deck with **Move Earlier** and **Move Late
 are 6–20 cards, stored per act in `BepInEx/config/inscryptionmp-deck-act1.txt` (and `-act2`,
 `-act3`), one card per line as `CardName` or `CardName:Sigil,Sigil`. The file's order is the
 deck's order, so it can be rearranged in a text editor too.
+
+**Sharing a deck.** In **F7 → EDIT DECK**, **Copy deck code** puts the deck on your
+clipboard as one line starting `IODECK1-`, sigils and order included. Paste it anywhere.
+Your friend copies it and presses **Paste deck code**. That switches them to the deck's act
+and replaces that act's deck, keeping the old one as `...txt.before-import` next to it.
+Cards their act can't use are left out, and the panel says how many.
 
 **The second pile.** Act 1 keeps ten squirrels beside your deck and Act 3 ten empty vessels,
 and you can draw from either one on any turn instead of your own deck — the same as the
@@ -128,6 +123,27 @@ it (see `NOTES.md`).
 
 The card pool ignores campaign progression on purpose: a versus deck shouldn't be gated
 behind someone's single-player unlocks.
+
+## FAQ
+
+**How do I end my turn?** Ring the bell on the table, the same as in the campaign. If you
+can't find it, or the act hides it well, press **END TURN**. It appears under the score at
+the top of the screen whenever the bell would answer: on your turn, once you've drawn, and
+not while you're placing a card. Both do the same thing.
+
+**What does the score at the top mean?** Each side shows how far ahead that player is and
+the post, e.g. `+3 / 10`: three up, ten to win. The post is the host's "damage to win" rule,
+5 unless they changed it.
+
+**My opponent can't connect: "needs to update the mod".** One of you is on 1.x. Both need
+2.0 or newer, see *Version compatibility* above.
+
+**Something went wrong. Where are the logs?** **F7 → Open log folder** opens the BepInEx
+folder. `mp-trace.log` is the mod's own log and `LogOutput.log` is BepInEx's. Attach both
+to a bug report, from both players if you can.
+
+**Every match deals me the same opening hand.** Fixed in 2.0: each match now rolls its own
+shuffle.
 
 ## How it works
 
@@ -161,7 +177,7 @@ ones worth knowing before you write an Inscryption mod of your own.
 - **No consumable items.** The Pliers, the Dagger and the rest deal damage straight to
   the scales that the other player never hears about, and the Dagger writes to the save
   file's story events. A match carries none until they can be synced properly.
-- **One match rule so far.** The wire format takes as many as we like — it is a key=value
+- **More match rules.** The wire format takes as many as we like — it is a key=value
   list an older build skips what it doesn't know from — so this is a place to put ideas.
 - Some rarer card effects may not replicate perfectly on the opponent's screen.
   Please report anything that looks wrong.
@@ -185,7 +201,7 @@ Requires the .NET SDK. BepInEx packages come from `https://nuget.bepinex.dev/v3/
 
 ## AI disclosure
 
-Most of this mod's code was written by **Claude Opus 5 (Anthropic)**, working with the
+Most of this mod's code was written by **Claude Opus 5 and Opus 5.5 (Anthropic)**, working with the
 author across a handful of extended sessions: the author drove the design, tested every
 build against a second machine, and found a good number of the bugs.
 

@@ -302,6 +302,12 @@ namespace InscryptionMP
             MatchRules.Lock();
             SaveManager.savingDisabled = true;   // belt and braces: no save writes during a match
 
+            // Per-match state from the last match must not leak into this one.
+            PeerState.Reset();
+            ScaleSync.Reset();
+            MatchSeed.Roll();
+            MatchSummary.Begin();
+
             // Start from an empty queue. Anything still buffered belongs to the match that
             // just finished, and applying it here would materialise phantom cards.
             Net.FlushInbox();
@@ -443,7 +449,11 @@ namespace InscryptionMP
         public static string LastResult { get; private set; }
 
         /// <summary>Drops the result when a different opponent turns up. See Lobby.</summary>
-        internal static void ForgetLastResult() => LastResult = null;
+        internal static void ForgetLastResult()
+        {
+            LastResult = null;
+            MatchSummary.Forget();
+        }
 
         /// <summary>True while a match is paused waiting for a dropped peer to return.</summary>
         public static bool Suspended { get; private set; }
@@ -500,6 +510,7 @@ namespace InscryptionMP
             if (playerWon) Notice.Good(LastResult);
             else Notice.Say(LastResult);
             Trace.Info($"[versus] match over - {LastResult} ({reason})");
+            MatchSummary.End(playerWon, reason);
 
             Net.Send(playerWon ? Protocol.YouLost : Protocol.YouWon);   // their result is our inverse
 

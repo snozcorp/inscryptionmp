@@ -62,6 +62,8 @@ rm -f .tmp/test-*.log
 
 run "act 1, in order"  --act 1 --draw order  --turns 4
 run "act 1, random"    --act 1 --draw random --turns 4
+# The post that used to pull the two scales apart: only the attacker capped at 5.
+run "act 1, damage to win 10" --act 1 --rules "custom=1;draw=random;win=10" --turns 8
 run "act 2, in order"  --act 2 --draw order  --turns 4 --deck "@pool"
 run "act 3, in order"  --act 3 --draw order  --turns 5 --deck "@pool"
 run "conceding by leaving" --act 1 --draw random --host-turns 2 --join-turns 10

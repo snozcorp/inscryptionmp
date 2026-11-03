@@ -15,11 +15,17 @@ namespace InscryptionMP
         /// 5 added RULES, the host's house rules for the match, plus NAME, CHAT and EMOTE.
         /// The rules payload is a key=value list, so a later rule is a key an older build
         /// skips rather than another version.
+        ///
+        /// 6 (mod 2.0) added SCALE and changed what both sides simulate - sigils that only
+        /// help their owner, the win post in combat - so it can't be mixed with older ones.
         /// </summary>
-        public const int Version = 5;
+        public const int Version = 6;
 
-        /// <summary>The oldest protocol we can still play against.</summary>
-        public const int MinCompatible = 2;
+        /// <summary>
+        /// The oldest protocol we can still play against. 2.0 fixed how both clients run
+        /// the same combat; a 1.x peer would put every one of those desyncs straight back.
+        /// </summary>
+        public const int MinCompatible = 6;
 
         public const string HelloPrefix = "HELLO ";
 
@@ -302,6 +308,45 @@ namespace InscryptionMP
         /// </summary>
         public const string YouWon  = "OVER WON";
         public const string YouLost = "OVER LOST";
+
+        public const string ScalePrefix = "SCALE ";
+
+        /// <summary>
+        /// The sender's balance (their damage dealt minus taken), sent just before END. Both
+        /// sides have resolved exactly the same combats by then, so the receiver takes it as
+        /// the truth - the sender defended the last combat with both boards freshly synced.
+        /// </summary>
+        public static string Scale(int balance) => ScalePrefix + balance;
+
+        public static bool TryParseScale(string msg, out int balance)
+        {
+            balance = 0;
+            return msg != null
+                   && msg.StartsWith(ScalePrefix)
+                   && int.TryParse(msg.Substring(ScalePrefix.Length).Trim(), out balance);
+        }
+
+        public const string StatePrefix = "STATE ";
+
+        /// <summary>
+        /// What the sender holds that cards read their stats from: hand size, bones and
+        /// sacrifices this turn. Sent with BOARD so the receiver's copies of those cards
+        /// count the sender's resources rather than its own.
+        /// </summary>
+        public static string State(int hand, int bones, int sacrifices) =>
+            StatePrefix + hand + " " + bones + " " + sacrifices;
+
+        public static bool TryParseState(string msg, out int hand, out int bones, out int sacrifices)
+        {
+            hand = bones = sacrifices = 0;
+            if (msg == null || !msg.StartsWith(StatePrefix)) return false;
+
+            string[] parts = msg.Substring(StatePrefix.Length).Trim().Split(' ');
+            return parts.Length == 3
+                   && int.TryParse(parts[0], out hand) && hand >= 0
+                   && int.TryParse(parts[1], out bones) && bones >= 0
+                   && int.TryParse(parts[2], out sacrifices) && sacrifices >= 0;
+        }
 
         public static string Play(string cardName, int slotIndex) => $"PLAY {cardName} {slotIndex}";
 

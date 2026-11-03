@@ -62,6 +62,9 @@ namespace InscryptionMP.Tests
         {
             Versions();
             Handshake();
+            Scale();
+            State();
+            DeckCodes();
             Votes();
             RulesWire();
             RulesPayload();
@@ -79,20 +82,86 @@ namespace InscryptionMP.Tests
 
         private static void Handshake()
         {
-            Eq(Protocol.Version, 5, "protocol version");
-            Check(Protocol.Hello.StartsWith("HELLO 5 "), "greeting carries the version");
+            Eq(Protocol.Version, 6, "protocol version");
+            Check(Protocol.Hello.StartsWith("HELLO 6 "), "greeting carries the version");
 
-            Check(Protocol.TryParseHello("HELLO 5 1.5.0", out int p, out string v), "greeting parses");
-            Eq(p, 5, "greeting protocol");
-            Eq(v, "1.5.0", "greeting mod version");
+            Check(Protocol.TryParseHello("HELLO 6 2.0.0", out int p, out string v), "greeting parses");
+            Eq(p, 6, "greeting protocol");
+            Eq(v, "2.0.0", "greeting mod version");
 
             Check(Protocol.TryParseHello("HELLO 2", out int old, out _), "a greeting without a version parses");
             Eq(old, 2, "old greeting protocol");
-            Check(!Protocol.TryParseHello("HELO 5 1.5.0", out _, out _), "a misspelt greeting is refused");
-            Check(!Protocol.TryParseHello("HELLO x 1.5.0", out _, out _), "a non-numeric protocol is refused");
+            Check(!Protocol.TryParseHello("HELO 6 2.0.0", out _, out _), "a misspelt greeting is refused");
+            Check(!Protocol.TryParseHello("HELLO x 2.0.0", out _, out _), "a non-numeric protocol is refused");
 
-            // 1.5 must still be able to sit down with everything back to 1.1.
-            Check(Protocol.MinCompatible <= 2, "protocol 2 peers are still allowed");
+            // 2.0 changed what both clients simulate in combat; a 1.x peer would desync.
+            Eq(Protocol.MinCompatible, 6, "1.x peers are refused");
+            Check(5 < Protocol.MinCompatible, "protocol 5 (mod 1.5) is too old");
+        }
+
+        /// <summary>
+        /// The sender's balance, taken as truth by the receiver. A negative balance is the
+        /// common case - whoever is behind sends one every other turn.
+        /// </summary>
+        private static void Scale()
+        {
+            Eq(Protocol.Scale(3), "SCALE 3", "a lead encodes");
+            Eq(Protocol.Scale(-4), "SCALE -4", "a deficit encodes");
+            Eq(Protocol.Scale(0), "SCALE 0", "level encodes");
+
+            Check(Protocol.TryParseScale("SCALE -4", out int b), "a deficit parses");
+            Eq(b, -4, "parsed deficit");
+            Check(Protocol.TryParseScale(Protocol.Scale(7), out int round), "a scale round-trips");
+            Eq(round, 7, "round-tripped balance");
+
+            Check(!Protocol.TryParseScale("SCALE", out _), "a scale with no number is refused");
+            Check(!Protocol.TryParseScale("SCALE x", out _), "a non-numeric scale is refused");
+            Check(!Protocol.TryParseScale("STATE 1 2 3", out _), "STATE is not a scale");
+            Check(!Protocol.TryParseScale(null, out _), "null is not a scale");
+        }
+
+        private static void State()
+        {
+            Eq(Protocol.State(5, 3, 1), "STATE 5 3 1", "a state encodes");
+            Check(Protocol.TryParseState("STATE 5 3 1", out int hand, out int bones, out int sacs), "a state parses");
+            Eq(hand, 5, "parsed hand");
+            Eq(bones, 3, "parsed bones");
+            Eq(sacs, 1, "parsed sacrifices");
+
+            Check(Protocol.TryParseState(Protocol.State(0, 0, 0), out _, out _, out _), "an empty state round-trips");
+            Check(!Protocol.TryParseState("STATE 5 3", out _, out _, out _), "a short state is refused");
+            Check(!Protocol.TryParseState("STATE 5 3 1 9", out _, out _, out _), "a long state is refused");
+            Check(!Protocol.TryParseState("STATE 5 -3 1", out _, out _, out _), "negative bones are refused");
+            Check(!Protocol.TryParseState("STATE a b c", out _, out _, out _), "a non-numeric state is refused");
+            Check(!Protocol.TryParseState("SCALE 3", out _, out _, out _), "SCALE is not a state");
+            Check(!Protocol.TryParseState(null, out _, out _, out _), "null is not a state");
+
+            // Neither prefix may swallow the other's lines, or one would eat the other's turn.
+            Check(!Protocol.StatePrefix.StartsWith(Protocol.ScalePrefix)
+                  && !Protocol.ScalePrefix.StartsWith(Protocol.StatePrefix), "STATE and SCALE prefixes are distinct");
+        }
+
+        private static void DeckCodes()
+        {
+            var deck = new[] { "Stoat", "Wolf:Sniper,Flying", "Squirrel", "Squirrel" };
+            string code = DeckCode.Encode(MatchAct.Act3, deck);
+            Check(code.StartsWith("IODECK1-3-"), "a deck code names its act");
+            Check(code.IndexOf('=') < 0 && code.IndexOf('+') < 0 && code.IndexOf('/') < 0,
+                  "a deck code is URL- and chat-safe");
+
+            Check(DeckCode.TryDecode(code, out MatchAct act, out var back), "a deck code decodes");
+            Eq(act, MatchAct.Act3, "decoded act");
+            Eq(string.Join("|", back), string.Join("|", deck), "decoded entries, sigils and order kept");
+            Check(DeckCode.TryDecode("  " + code + "\n", out _, out _), "surrounding whitespace is ignored");
+
+            Check(!DeckCode.TryDecode("", out _, out _), "an empty paste is refused");
+            Check(!DeckCode.TryDecode("hello there", out _, out _), "ordinary text is refused");
+            Check(!DeckCode.TryDecode("IODECK1-9-" + code.Substring(10), out _, out _), "an unknown act is refused");
+            Check(!DeckCode.TryDecode("IODECK1-1-!!!!", out _, out _), "a broken payload is refused");
+            Check(!DeckCode.TryDecode(DeckCode.Encode(MatchAct.Act1, new string[0]), out _, out _),
+                  "an empty deck is refused");
+            Check(!DeckCode.TryDecode(DeckCode.Encode(MatchAct.Act1, new[] { "Two Words" }), out _, out _),
+                  "a name with a space is refused");
         }
 
         private static void Votes()

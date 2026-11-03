@@ -11,7 +11,7 @@ namespace InscryptionMP
     {
         public const string Guid = "dev.snoz.inscryptionmp";
         public const string Name = "InscryptionMP";
-        public const string Version = "1.5.0";
+        public const string Version = "2.0.0";
 
         internal static ManualLogSource Log;
 
@@ -42,6 +42,11 @@ namespace InscryptionMP
             Log.LogInfo("Harmony patches applied.");
 
             gameObject.AddComponent<MpMenu>();
+            if (CardArtExporter.Wanted())
+            {
+                gameObject.AddComponent<CardArtExporter>();
+                Log.LogInfo("Dev card exporter enabled - F6 exports the deck pools.");
+            }
             Log.LogInfo("Press F7 for the multiplayer menu.  F8 = start match, F12 = abort.");
 
             MatchRules.Bind(Config.Bind("Match", "Rules", Rules.Default.Encode(),

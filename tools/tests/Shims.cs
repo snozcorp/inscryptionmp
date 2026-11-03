@@ -7,6 +7,6 @@ namespace InscryptionMP
     /// </summary>
     internal static class Plugin
     {
-        public const string Version = "1.5.0";
+        public const string Version = "2.0.0";
     }
 }

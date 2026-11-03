@@ -491,7 +491,7 @@ namespace InscryptionMP
 
                 if (VersusMode.InMatch)
                 {
-                    _barScale = FitWidth(620f);
+                    _barScale = FitWidth(ScoreBarW + 60f);
                     GUI.matrix = Matrix4x4.Scale(new Vector3(_barScale, _barScale, 1f));
                     DrawScoreBar();
                 }
@@ -616,7 +616,7 @@ namespace InscryptionMP
             string turn = VersusMode.Suspended ? "OPPONENT LEFT"
                         : TurnOrder.IsMyTurn ? "YOUR TURN" : "THEIR TURN";
 
-            const float w = 560f, padX = 18f, padY = 12f, rowH = 28f, gap = 10f;
+            const float w = ScoreBarW, padX = 18f, padY = 12f, rowH = 28f, gap = 10f;
 
             float vw = Screen.width / _barScale;
             var box = new Rect((vw - w) * 0.5f, 14f, w, rowH + padY * 2f);
@@ -626,9 +626,10 @@ namespace InscryptionMP
 
             float col = (w - padX * 2f) / 3f;
             float top = box.y + padY;
+            int goal = MatchRules.Live.DamageToWin;
 
-            Side(new Rect(box.x + padX, top, col - gap, rowH), Player.LocalName, lead, false);
-            Side(new Rect(box.xMax - padX - col + gap, top, col - gap, rowH), Player.PeerName, -lead, true);
+            Side(new Rect(box.x + padX, top, col - gap, rowH), Player.LocalName, lead, goal, false);
+            Side(new Rect(box.xMax - padX - col + gap, top, col - gap, rowH), Player.PeerName, -lead, goal, true);
 
             var turnStyle = new GUIStyle(_scoreTurn)
             {
@@ -636,35 +637,59 @@ namespace InscryptionMP
                                      : TurnOrder.IsMyTurn ? Gold : BoneDim },
             };
             GUI.Label(new Rect(box.x + padX + col, top, col, rowH), turn, turnStyle);
+
+            // The bell, for whoever can't find it - or is in an act where it's hard to see.
+            if (CanEndTurn())
+            {
+                const float bw = 170f, bh = 36f;
+                if (GUI.Button(new Rect(box.center.x - bw * 0.5f, box.yMax + 8f, bw, bh), "END TURN", _primary))
+                {
+                    Trace.Info("[menu] end turn pressed");
+                    Singleton<TurnManager>.Instance.OnCombatBellRang();
+                }
+            }
         }
 
-        /// <summary>One player's half: their name, and how far ahead they are.</summary>
-        private void Side(Rect r, string name, int lead, bool rightAligned)
+        /// <summary>Exactly when the game's own bell would answer a press.</summary>
+        private static bool CanEndTurn()
+        {
+            if (!VersusMode.InMatch || VersusMode.Suspended || !TurnOrder.IsMyTurn) return false;
+            var tm = Singleton<TurnManager>.Instance;
+            var hand = Singleton<PlayerHand>.Instance;
+            return tm != null && tm.PlayerCanInitiateCombat && hand != null && !hand.ChoosingSlot;
+        }
+
+        private const float ScoreBarW = 640f;
+
+        /// <summary>One player's half: their name, how far ahead they are, and the post.</summary>
+        private void Side(Rect r, string name, int lead, int goal, bool rightAligned)
         {
             Color tint = lead > 0 ? Moss : lead < 0 ? Rust : BoneDim;
             string num = lead > 0 ? "+" + lead : lead.ToString();
 
             var numStyle = new GUIStyle(_scoreNum)
             {
-                alignment = rightAligned ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight,
+                alignment = TextAnchor.MiddleRight,
                 normal = { textColor = tint },
+            };
+            var goalStyle = new GUIStyle(_scoreName)
+            {
+                alignment = TextAnchor.MiddleLeft,
+                normal = { textColor = BoneDim },
             };
             var nameStyle = new GUIStyle(_scoreName)
             {
                 alignment = rightAligned ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft,
             };
 
-            const float numW = 46f;
-            if (rightAligned)
-            {
-                GUI.Label(new Rect(r.x, r.y, numW, r.height), num, numStyle);
-                GUI.Label(new Rect(r.x + numW + 10f, r.y, r.width - numW - 10f, r.height), name, nameStyle);
-            }
-            else
-            {
-                GUI.Label(new Rect(r.x, r.y, r.width - numW - 10f, r.height), name, nameStyle);
-                GUI.Label(new Rect(r.xMax - numW, r.y, numW, r.height), num, numStyle);
-            }
+            // "+3 / 10" reads the same way round on both sides; only the name moves.
+            const float numW = 46f, goalW = 40f, scoreW = numW + goalW;
+            float scoreX = rightAligned ? r.x : r.xMax - scoreW;
+            GUI.Label(new Rect(scoreX, r.y, numW, r.height), num, numStyle);
+            GUI.Label(new Rect(scoreX + numW + 4f, r.y, goalW - 4f, r.height), "/ " + goal, goalStyle);
+
+            float nameX = rightAligned ? r.x + scoreW + 10f : r.x;
+            GUI.Label(new Rect(nameX, r.y, r.width - scoreW - 10f, r.height), name, nameStyle);
         }
 
         /// <summary>What the score bar was drawn at last pass.</summary>
@@ -1184,6 +1209,11 @@ namespace InscryptionMP
                     ? "Custom  -  " + MatchRules.Effective.Summary()
                     : "The game's own rules. Yours to set as host."))
                 _page = Page.Rules;
+
+            GUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Open log folder", _quiet, GUILayout.Width(170f))) Trace.OpenFolder();
+            GUILayout.EndHorizontal();
         }
 
         // ------------------------------------------------------------------- online
@@ -1344,10 +1374,40 @@ namespace InscryptionMP
                                  _primary, GUILayout.Height(40f)))
                 OpenCardView();
 
+            GUILayout.Space(8f);
+            GUILayout.BeginHorizontal();
+            if (GUILayout.Button("Copy deck code", _quiet, GUILayout.Height(32f))) CopyDeckCode();
+            GUILayout.Space(8f);
+            if (GUILayout.Button("Paste deck code", _quiet, GUILayout.Height(32f))) PasteDeckCode();
+            GUILayout.EndHorizontal();
+
             if (!DeckStore.IsValid)
                 Say("Deck needs " + DeckStore.MinCards + "-" + DeckStore.MaxCards + " cards.", _warn);
             if (NativeDeckBuilder.LastError != null)
                 Say(NativeDeckBuilder.LastError, _warn);
+        }
+
+        private static void CopyDeckCode()
+        {
+            GUIUtility.systemCopyBuffer = DeckCode.Encode(ActInfo.Selected, DeckStore.Deck);
+            Notice.Good(ActInfo.Name(ActInfo.Selected) + " deck code copied - paste it to a friend.");
+        }
+
+        private static void PasteDeckCode()
+        {
+            if (!DeckCode.TryDecode(GUIUtility.systemCopyBuffer, out MatchAct act, out List<string> entries))
+            {
+                Notice.Bad("Copy a deck code first - it starts with " + DeckCode.Prefix);
+                return;
+            }
+
+            if (act != ActInfo.Selected) Lobby.ChooseAct(act);
+            int dropped = DeckStore.ReplaceWith(entries);
+            if (dropped == 0)
+                Notice.Good("Loaded a " + entries.Count + "-card " + ActInfo.Name(act) + " deck.");
+            else
+                Notice.Bad("Loaded the " + ActInfo.Name(act) + " deck without " + dropped
+                           + " card(s): not usable in this act, or past the deck limit.");
         }
 
         // -------------------------------------------------------------------- rules
@@ -1463,6 +1523,7 @@ namespace InscryptionMP
             {
                 GUILayout.Space(Gap);
                 Say(VersusMode.LastResult, _resultText);
+                if (MatchSummary.Text != null) Say(MatchSummary.Text, _small);
             }
 
             GUILayout.Space(Section);

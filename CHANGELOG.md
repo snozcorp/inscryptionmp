@@ -2,7 +2,70 @@
 
 Versions that were actually published. Dates are release dates.
 
-## 1.5.0 — 2026-09-10
+## 2.0.0 — 2026-11-03
+
+The update that makes both screens agree. **Both players need 2.0** (see the end).
+
+**The scales no longer drift apart.** In a longer match, and most of all with "damage to
+win" above 5, the two players could end up looking at different scores. The cause was
+one more hard-coded 5 that 1.5 missed. When you attack, the game cuts your damage off at
+the point where it would tip the scales past 5. It does that only on the attacker's own
+screen, so with the post at 10, sitting on +3 and hitting for 4 moved your scale 2 and your
+opponent's 4. The cut now follows the match's real post. As a backstop, each player sends
+their scale with their turn, and if the other screen disagrees it leans its scale to match.
+
+**Your opponent's sigils stop paying you.** On your screen, their Bees Within put a bee in
+*your* hand. Rabbit Hole, Fecundity, Unkillable, Steel Trap's pelt, Bone Digger, the gem and
+energy sigils and every other "gain a card / bone / item" sigil did the same: the game never
+asks whose card triggered them. The owner's screen already does it for real, so now the
+other screen leaves it alone.
+
+**Cards that count things count the right player's.** Hand Tentacle, Lammergeier and the
+sacrifice counter on your opponent's cards read *your* hand, bones and sacrifices, so the
+numbers on their side of the board were yours. Each player now sends theirs with their
+turn. Bell Tentacle counts the chimes beside it on its own side of the table,
+not the ones in the same spot on yours.
+
+**Many Lives survives being sacrificed on your opponent's screen**, instead of dying there
+while it lived on yours.
+
+**Daus answers only its own bells.** It struck back at any bell anyone hit, so your Daus
+punished your own cards for hitting the opponent's chimes.
+
+**The Ijiraq is the Ijiraq.** It disguises itself whenever it's shown off the board, and
+the deck builder saved whatever it was shown, so it ended up in your deck as "Mole Man?" or
+a copy of another card. It now stays itself in the deck builder, and still disguises itself
+in your hand during a match.
+
+**A new opening hand every match.** The game seeds its shuffle from your campaign run, and a
+match's run is the same every time, so the same deck dealt the same opening hand match after
+match. Each match now rolls its own.
+
+**An END TURN button.** The bell is still there. The button sits under the score at the
+top of the screen whenever the bell would answer. It's for anyone who couldn't find the
+bell, which was the most common question on Nexus.
+
+**The score shows the post.** Each side reads like `+3 / 10`: three up, ten to win.
+
+**Deck codes.** **Copy deck code** puts your deck on the clipboard as one line, sigils and
+order included. **Paste deck code** loads a friend's into the matching act and keeps your
+old deck in a backup file.
+
+**A match summary.** The lobby shows rounds, time, the final scales and how many cards each
+of you played under the result.
+
+**Open log folder**, on the home screen, for bug reports.
+
+**Act 2 and Act 3 cards show their costs on Act 1's table.** Act 1's card renderer has no
+art for energy or gem costs, so most Tech and Mox cards had a blank corner in the deck
+builder. It now draws a battery or the gems in that corner.
+
+**Compatibility.** 2.0 refuses every 1.x build. The fixes above change what each client
+*does* during combat, not just what it says, so a 1.5 client would bring every one of
+those desyncs straight back. The handshake says so before anything loads, and names both
+versions.
+
+## 1.5.0 — 2026-09-12
 
 The update that let you set the rules, and put a lobby around them.
 

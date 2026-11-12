@@ -36,6 +36,9 @@ over the network, against another person.
 - **Deck builder** using the game's own 3D card table, paged, persisted to disk — one
   deck per act, each restricted to cards that act can actually draw and pay for. The deck
   has an order you can set, which is the order it is dealt in under the in-order rule.
+- **Random decks.** One button builds a legal deck from that act's ordinary card pool. It
+  follows the live deck-size rule, including the host's rule when you are the guest, and
+  can be turned down to a shorter deck before it is made.
 - **Sigils on your own cards.** Put extra sigils on any card in your deck. The
   picker shows that card wearing each sigil, so you choose by looking at cards rather than
   reading a list, and only sigils the act can actually draw are offered.
@@ -55,7 +58,8 @@ over the network, against another person.
    doorstop_config.ini
    BepInEx/plugins/InscryptionMP.dll
    ```
-3. Launch the game and press **F7**.
+3. Launch the game and press **F7**. Press **F9** at any time to hide or show the small
+   status panel in the corner.
 
 **Version compatibility.** Both players need **2.0 or newer**. 2.0 changed how each client
 runs combat, not just what the two say to each other, so it can't sit down with 1.x: the
@@ -78,7 +82,7 @@ loads. Within 1.x the old rules still hold: 1.1–1.5 play each other, newest fe
 5. Whoever the rules say takes the first turn. Ring the bell to pass, or press **END TURN**
    under the score at the top of the screen.
 
-**F7** menu · **F8** ready up · **F12** abort out of anything · **1-6** say something in a
+**F7** menu · **F8** ready up · **F9** hide/show status · **F12** abort out of anything · **1-6** say something in a
 match · chat lives in the bottom right corner
 
 ## Deck building
@@ -89,6 +93,14 @@ the bottom shows where it sits in the deck with **Move Earlier** and **Move Late
 are 6–20 cards, stored per act in `BepInEx/config/inscryptionmp-deck-act1.txt` (and `-act2`,
 `-act3`), one card per line as `CardName` or `CardName:Sigil,Sigil`. The file's order is the
 deck's order, so it can be rearranged in a text editor too.
+
+**Random deck.** The **Random deck** row starts at the deck limit in the rules that apply
+right now — the host's rule when you have joined a lobby — and its arrows can make a deck
+as small as six cards. **Make deck** chooses from the same pool shown by the card table,
+so every generated card is legal for the selected act. It keeps the deck it replaced as
+`...txt.before-random`. **Random sigils** leaves the deck plain with **Off**, gives some
+cards one extra legal sigil with **Light**, or fills every card's remaining sigil slots
+with **Wild**. Printed sigils count towards the same limit and are never repeated.
 
 **Sharing a deck.** In **F7 → EDIT DECK**, **Copy deck code** puts the deck on your
 clipboard as one line starting `IODECK1-`, sigils and order included. Paste it anywhere.

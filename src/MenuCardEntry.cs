@@ -345,27 +345,37 @@ namespace InscryptionMP
         [HarmonyPrefix]
         private static bool InterceptOurCard(MenuController __instance, MenuCard card)
         {
+            // Do not let title cards act through the overlay.
+            if (MpMenu.BlocksTitleMenuInput)
+            {
+                Trace.Info("[menucard] ignored a title-screen card while the panel was open");
+                ResetMenuTransition(__instance);
+                return false;
+            }
+
             if (card == null || _card == null || card != _card) return true;
 
             Trace.Info("[menucard] multiplayer card slotted - opening the panel");
 
+            ResetMenuTransition(__instance);
+            MpMenu.OpenFromMenuCard();
+            return false;   // don't run a vanilla action
+        }
+
+        /// <summary>Restores the title card row after a blocked action.</summary>
+        private static void ResetMenuTransition(MenuController controller)
+        {
             try
             {
-                // The flag the skipped method would have cleared.
                 AccessTools.Property(typeof(MenuController), "DoingCardTransition")
-                          ?.SetValue(__instance, false, null);
+                          ?.SetValue(controller, false, null);
 
-                // Pop the card back out and re-enable the row, so the title screen is
-                // still usable behind our panel.
-                __instance.ResetToDefaultState();
+                controller.ResetToDefaultState();
             }
             catch (System.Exception e)
             {
                 Trace.Error($"[menucard] could not restore the menu: {e.Message}");
             }
-
-            MpMenu.OpenFromMenuCard();
-            return false;   // don't run a vanilla action
         }
     }
 }

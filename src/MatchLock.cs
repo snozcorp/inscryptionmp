@@ -16,6 +16,19 @@ namespace InscryptionMP
             return false;   // swallow it; you're playing a match
         }
 
+        /// <summary>Deck preview must not start campaign tutorial sequencers.</summary>
+        [HarmonyPatch(typeof(SpecialGameFlowSequencer),
+                      nameof(SpecialGameFlowSequencer.AddSequencerComponentForRun))]
+        [HarmonyPrefix]
+        private static bool SkipCampaignSequencerForDeckTable(ref SpecialGameFlowSequencer __result)
+        {
+            if (!VersusMode.LoadedTableForDeck) return true;
+
+            Trace.Info("[lock] bypassing campaign sequencer for the deck table");
+            __result = null;
+            return false;
+        }
+
         /// <summary>
         /// Part 1's scene initialisation ends by transitioning to the map and then reading
         /// RunState.Run.map.EndNode - and a versus run is synthesised with no map, so that read
@@ -25,7 +38,8 @@ namespace InscryptionMP
         [HarmonyPrefix]
         private static bool SkipPart1SceneIntro()
         {
-            if (!VersusMode.InMatch && !VersusMode.PendingStart) return true;
+            // The deck table uses an isolated Part 1 run.
+            if (!VersusMode.VersusContext) return true;
 
             var items = Singleton<ItemsManager>.Instance;
             if (items != null) items.SetSlotsAtEdge(atEdge: true, immediate: true);
@@ -33,7 +47,7 @@ namespace InscryptionMP
             var area = Singleton<ExplorableAreaManager>.Instance;
             if (area != null) area.SetHangingLightShadowStrength(0.5f, 0f);
 
-            Trace.Info("[lock] skipping Part 1 scene intro - a match is starting");
+            Trace.Info("[lock] skipping Part 1 scene intro - versus table is loading");
             return false;
         }
 

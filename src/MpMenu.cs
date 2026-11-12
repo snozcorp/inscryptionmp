@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using DiskCardGame;
 using Steamworks;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace InscryptionMP
 {
@@ -24,6 +25,10 @@ namespace InscryptionMP
 
         private bool _open;
         private bool _matchWasActive;
+        private bool _chipHidden;
+        // Cursor lock state while the title panel is open.
+        private bool _blockedGameCursor;
+        private bool _cursorWasAlreadyBlocked;
 
         /// <summary>Which of the panel's screens is in front.</summary>
         /// <summary>
@@ -43,6 +48,10 @@ namespace InscryptionMP
         /// <summary>The dial whose note is being shown, so the rules screen can explain itself.</summary>
         private string _explaining;
 
+        /// <summary>Random deck size and its current rule limit.</summary>
+        private int _randomDeckSize;
+        private int _randomDeckRuleLimit = -1;
+        private RandomDeckSigils _randomDeckSigils = RandomDeckSigils.None;
 
         private Rect _rect;
         private Vector2 _lobbyScroll;
@@ -70,6 +79,7 @@ namespace InscryptionMP
                 if (NativeDeckBuilder.IsOpen) NativeDeckBuilder.Close();
                 else _open = !_open;
             }
+            if (Input.GetKeyDown(KeyCode.F9)) _chipHidden = !_chipHidden;
             // F8 does whatever the start button does. Forcing a match past a negotiation
             // the other player is still in the middle of is not a shortcut, it's a desync.
             if (Input.GetKeyDown(KeyCode.F8))
@@ -79,6 +89,7 @@ namespace InscryptionMP
             }
             if (Input.GetKeyDown(KeyCode.F12)) VersusMode.Abort(this);
 
+            SyncGameCursorLock();
             VersusMode.TickPendingStart(this);
             NativeDeckBuilder.TickPendingOpen(this);
             Lobby.Tick(this);
@@ -499,7 +510,7 @@ namespace InscryptionMP
                 {
                     float chipScale = FitWidth(460f);
                     GUI.matrix = Matrix4x4.Scale(new Vector3(chipScale, chipScale, 1f));
-                    DrawChip();
+                    if (!_chipHidden) DrawChip();
                 }
 
                 GUI.matrix = chipRestore;
@@ -583,7 +594,7 @@ namespace InscryptionMP
             // Nothing to add that the state doesn't already say. The chip skips a null row,
             // which reads better than repeating "connecting" underneath "CONNECTING".
             if (Net.Running) return Net.IsHost ? "Waiting for an opponent to join" : null;
-            return "Press F7 to find a game";
+            return "F7 opens the menu  ·  F9 Hide/Show UI";
         }
 
         /// <summary>
@@ -1050,8 +1061,8 @@ namespace InscryptionMP
 
             GUILayout.Space(Gap);
             GUILayout.Label(Lobby.Negotiating
-                            ? "F7 menu     F8 ready up     F12 abort"
-                            : "F7 menu     F8 start match     F12 abort", _small);
+                            ? "F7 menu     F8 ready     F9 Hide/Show UI     F12 abort"
+                            : "F7 menu     F8 start     F9 Hide/Show UI     F12 abort", _small);
 
             GUILayout.EndVertical();
 
@@ -1381,6 +1392,12 @@ namespace InscryptionMP
             if (GUILayout.Button("Paste deck code", _quiet, GUILayout.Height(32f))) PasteDeckCode();
             GUILayout.EndHorizontal();
 
+            GUILayout.Space(8f);
+            DrawRandomDeckControl();
+
+            GUILayout.Space(2f);
+            DrawRandomSigilControl();
+
             if (!DeckStore.IsValid)
                 Say("Deck needs " + DeckStore.MinCards + "-" + DeckStore.MaxCards + " cards.", _warn);
             if (NativeDeckBuilder.LastError != null)
@@ -1408,6 +1425,86 @@ namespace InscryptionMP
             else
                 Notice.Bad("Loaded the " + ActInfo.Name(act) + " deck without " + dropped
                            + " card(s): not usable in this act, or past the deck limit.");
+        }
+
+        /// <summary>Random deck size selector.</summary>
+        private void DrawRandomDeckControl()
+        {
+            int limit = DeckStore.MaxCards;
+            if (_randomDeckRuleLimit != limit)
+            {
+                _randomDeckRuleLimit = limit;
+                _randomDeckSize = limit;
+            }
+            _randomDeckSize = Mathf.Clamp(_randomDeckSize, DeckStore.MinCards, limit);
+
+            const float labelW = 116f;
+            const float arrowW = 34f;
+            const float valueW = 92f;
+            const float gap = 6f;
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Random deck", _dim, GUILayout.Width(labelW), GUILayout.Height(30f));
+
+            GUI.enabled = _randomDeckSize > DeckStore.MinCards;
+            if (GUILayout.Button("<", _arrow, GUILayout.Width(arrowW), GUILayout.Height(30f)))
+                _randomDeckSize--;
+            GUILayout.Space(gap);
+
+            GUILayout.Label(_randomDeckSize + " cards", _dialValue,
+                            GUILayout.Width(valueW), GUILayout.Height(30f));
+
+            GUILayout.Space(gap);
+            GUI.enabled = _randomDeckSize < limit;
+            if (GUILayout.Button(">", _arrow, GUILayout.Width(arrowW), GUILayout.Height(30f)))
+                _randomDeckSize++;
+            GUI.enabled = true;
+
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Make deck", _primary, GUILayout.Width(150f), GUILayout.Height(30f)))
+                MakeRandomDeck();
+            GUILayout.EndHorizontal();
+        }
+
+        /// <summary>How much of a surprise the random deck should add beyond its base cards.</summary>
+        private void DrawRandomSigilControl()
+        {
+            const float labelW = 116f;
+            const float buttonW = 108f;
+            const float gap = 8f;
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Random sigils", _dim, GUILayout.Width(labelW), GUILayout.Height(30f));
+
+            RandomSigilButton("Off", RandomDeckSigils.None, buttonW);
+            GUILayout.Space(gap);
+            RandomSigilButton("Light", RandomDeckSigils.Light, buttonW);
+            GUILayout.Space(gap);
+            RandomSigilButton("Wild", RandomDeckSigils.Wild, buttonW);
+            GUILayout.EndHorizontal();
+        }
+
+        private void RandomSigilButton(string label, RandomDeckSigils mode, float width)
+        {
+            if (GUILayout.Button(label, _randomDeckSigils == mode ? _primary : _button,
+                                 GUILayout.Width(width), GUILayout.Height(30f)))
+                _randomDeckSigils = mode;
+        }
+
+        private void MakeRandomDeck()
+        {
+            int made = DeckStore.ReplaceWithRandom(_randomDeckSize, _randomDeckSigils);
+            if (made == 0)
+            {
+                Notice.Bad("No cards are ready for a random deck yet.");
+                return;
+            }
+
+            string sigils = _randomDeckSigils == RandomDeckSigils.None
+                ? "without extra sigils"
+                : "with " + _randomDeckSigils.ToString().ToLowerInvariant() + " random sigils";
+            Notice.Good("Made a " + made + "-card random " + ActInfo.Name(ActInfo.Selected)
+                        + " deck " + sigils + ".");
         }
 
         // -------------------------------------------------------------------- rules
@@ -1841,15 +1938,57 @@ namespace InscryptionMP
             _instance._open = true;
         }
 
+        /// <summary>True while the panel owns the game's pointer input.</summary>
+        public static bool BlocksTitleMenuInput => _instance != null && _instance._open;
+
         private static MpMenu _instance;
 
         private void Awake() => _instance = this;
-        private void OnDestroy() { if (_instance == this) _instance = null; }
+        private void OnDestroy()
+        {
+            ReleaseGameCursorLock();
+            if (_instance == this) _instance = null;
+        }
+
+        /// <summary>Blocks title-screen pointer input while the panel is open.</summary>
+        private void SyncGameCursorLock()
+        {
+            var cursor = Singleton<InteractionCursor>.Instance;
+            if (cursor == null) return;
+
+            // The deck preview needs this cursor for its cards.
+            if (_open && SceneManager.GetActiveScene().name == SceneLoader.StartSceneName)
+            {
+                if (!_blockedGameCursor)
+                {
+                    _cursorWasAlreadyBlocked = cursor.InteractionDisabled;
+                    _blockedGameCursor = true;
+                }
+
+                if (!cursor.InteractionDisabled) cursor.InteractionDisabled = true;
+                return;
+            }
+
+            ReleaseGameCursorLock();
+        }
+
+        private void ReleaseGameCursorLock()
+        {
+            if (!_blockedGameCursor) return;
+
+            var cursor = Singleton<InteractionCursor>.Instance;
+            if (cursor != null && !_cursorWasAlreadyBlocked)
+                cursor.InteractionDisabled = false;
+
+            _blockedGameCursor = false;
+            _cursorWasAlreadyBlocked = false;
+        }
 
         /// <summary>Loads the table if needed, then opens the game's card view.</summary>
         private void OpenCardView()
         {
             _open = false;
+            ReleaseGameCursorLock();
             if (NativeDeckBuilder.Available)
             {
                 NativeDeckBuilder.Open(this, poolMode: true);

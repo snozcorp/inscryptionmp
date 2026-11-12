@@ -245,6 +245,7 @@ namespace InscryptionMP
             }
 
             yield return new WaitForSeconds(0.3f);
+            RestoreCardCursor();
 
             while (IsOpen)
             {
@@ -349,6 +350,23 @@ namespace InscryptionMP
             {
                 TableProps.RestorePlayerMarker();
             }
+        }
+
+        /// <summary>Restores the 3D cursor needed by the card preview.</summary>
+        private static void RestoreCardCursor()
+        {
+            var cursor = Singleton<InteractionCursor>.Instance;
+            if (cursor == null)
+            {
+                Trace.Warn("[deckui] no interaction cursor to restore");
+                return;
+            }
+
+            bool wasDisabled = cursor.InteractionDisabled;
+            cursor.SetEnabled(enabled: true);
+            cursor.InteractionDisabled = false;
+            cursor.SetHidden(hidden: false);
+            Trace.Info("[deckui] restored card cursor (was disabled=" + wasDisabled + ")");
         }
 
         /// <summary>The current page of whichever list we're browsing.</summary>

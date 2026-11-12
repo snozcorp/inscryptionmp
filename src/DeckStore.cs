@@ -6,6 +6,14 @@ using DiskCardGame;
 
 namespace InscryptionMP
 {
+    /// <summary>How much the random-deck builder should decorate cards with extra sigils.</summary>
+    public enum RandomDeckSigils
+    {
+        None,
+        Light,
+        Wild,
+    }
+
     /// <summary>
     /// The player's versus deck: a list of card names persisted beside the BepInEx config.
     /// </summary>
@@ -23,6 +31,7 @@ namespace InscryptionMP
         public static int MaxAddedSigils => MatchRules.Effective.SigilsPerCard;
 
         private static readonly string[] NoSigils = new string[0];
+        private static readonly Random DeckRandom = new Random();
 
         /// <summary>
         /// A deck line is "CardName", or "CardName:Sigil,Sigil" once sigils are added.
@@ -330,6 +339,64 @@ namespace InscryptionMP
         /// </summary>
         public static int ReplaceWith(IList<string> entries)
         {
+            return Replace(entries, ".before-import");
+        }
+
+        /// <summary>Builds a legal random deck from the current act's pool.</summary>
+        public static int ReplaceWithRandom(int requestedSize, RandomDeckSigils sigils = RandomDeckSigils.None)
+        {
+            int size = Math.Max(MinCards, Math.Min(requestedSize, MaxCards));
+            List<CardInfo> pool = Pool;
+            if (pool.Count == 0)
+            {
+                Trace.Warn($"[deck] cannot build a random {ActInfo.Name(ActInfo.Selected)} deck: pool is empty");
+                return 0;
+            }
+
+            List<Ability> sigilPool = sigils == RandomDeckSigils.None
+                ? null
+                : SigilPool.For(ActInfo.Selected);
+            var entries = new List<string>(size);
+            for (int i = 0; i < size; i++)
+            {
+                CardInfo card = pool[DeckRandom.Next(pool.Count)];
+                entries.Add(RandomEntry(card, sigilPool, sigils));
+            }
+
+            int dropped = Replace(entries, ".before-random");
+            return entries.Count - dropped;
+        }
+
+        /// <summary>Adds legal, non-duplicate sigils to a generated card.</summary>
+        private static string RandomEntry(CardInfo card, List<Ability> sigilPool, RandomDeckSigils mode)
+        {
+            if (mode == RandomDeckSigils.None || sigilPool == null || sigilPool.Count == 0)
+                return card.name;
+
+            int printed = card.Abilities == null ? 0 : card.Abilities.Count;
+            int spaces = MaxAddedSigils - printed;
+            if (spaces <= 0) return card.name;
+
+            // Light leaves about half the cards plain and gives the rest one surprise.
+            if (mode == RandomDeckSigils.Light && DeckRandom.Next(2) == 0) return card.name;
+
+            var choices = sigilPool.Where(a => card.Abilities == null || !card.Abilities.Contains(a)).ToList();
+            int count = mode == RandomDeckSigils.Light ? 1 : Math.Min(spaces, choices.Count);
+            if (count == 0) return card.name;
+
+            var chosen = new List<string>(count);
+            for (int i = 0; i < count; i++)
+            {
+                int picked = DeckRandom.Next(choices.Count);
+                chosen.Add(choices[picked].ToString());
+                choices.RemoveAt(picked);
+            }
+            return MakeEntry(card.name, chosen);
+        }
+
+        /// <summary>Replaces a deck and backs up its previous file.</summary>
+        private static int Replace(IList<string> entries, string backupSuffix)
+        {
             var kept = new List<string>();
             foreach (string entry in entries)
             {
@@ -339,11 +406,11 @@ namespace InscryptionMP
 
             try
             {
-                if (File.Exists(Path)) File.Copy(Path, Path + ".before-import", overwrite: true);
+                if (File.Exists(Path)) File.Copy(Path, Path + backupSuffix, overwrite: true);
             }
             catch (Exception e)
             {
-                Trace.Warn($"[deck] could not back up the deck before importing: {e.Message}");
+                Trace.Warn($"[deck] could not back up the previous deck: {e.Message}");
             }
 
             EnsureAct();   // otherwise the next read drops this as another act's deck
@@ -352,7 +419,7 @@ namespace InscryptionMP
             Save();
 
             int dropped = entries.Count - kept.Count;
-            Trace.Info($"[deck] imported {kept.Count} card(s) into {ActInfo.Name(ActInfo.Selected)}, left out {dropped}");
+            Trace.Info($"[deck] replaced {ActInfo.Name(ActInfo.Selected)} deck with {kept.Count} card(s), left out {dropped}");
             return dropped;
         }
 
